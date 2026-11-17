@@ -2,12 +2,12 @@
 
 ## Resume here
 
-**Product Visual Design & UX Polish COMPLETE as of 2026-11-16.** Work from the current project workspace and use [PLANS.md](PLANS.md#product-visual-design--ux-polish--complete) as the execution record. The design system tokens, competitor UX inspirations (Fuelio, Drivvo, Mechanist/مکانیک همراه, CarKeep), and UI across Home, Quick Add, History, Monthly Dashboard, Reminders, Vehicle setup, and Backup Settings have been completely redesigned, verified, and audited.
+**Concept C v2 redesign implemented as of 2026-11-16.** Start with the [repository README](README.md) for setup and scope. Use [PLANS.md](PLANS.md#approved-concept-c-v2-production-design-implementation--complete) as the execution record for the current Android design.
 
-- **Design System & Audit Spec:** [VEHICLE_LEDGER_DESIGN_SYSTEM_AND_UX_AUDIT.md](file:///home/amir/.gemini/antigravity/brain/24a527bc-3dcd-49df-a31e-6cfe2d48e738/VEHICLE_LEDGER_DESIGN_SYSTEM_AND_UX_AUDIT.md).
-- **Authentic Verification Evidence:** 94 JVM unit tests passed with 0 failures (`./gradlew testDebugUnitTest`). Automated UI instrumentation test suite on isolated Android 15/API 35 emulator passed 100% (29 passed, 1 expected skip for force-stop, 0 failed across `HomeScreenTest`, `VehicleSetupTest`, `LedgerEntryUiTest`, `BackupDocumentPickerTest`, and `ReminderSchedulingTest`). 13 authentic screenshots pulled and verified across 100% and 150% font scales in `screenshots/`.
+- **Design specification:** [Concept C v2 implementation brief](design/vehicle-ledger-concept-c-v2/ANTIGRAVITY_IMPLEMENTATION.md) and [prototype previews](design/vehicle-ledger-concept-c-v2/README.md).
+- **Recorded verification:** The Concept C v2 run logged 94 passing JVM tests and 35 emulator instrumentation tests with zero failures. The execution record describes 19 screenshots from the emulator audit. The screenshot capture was retained locally. [Verification record](PLANS.md#approved-concept-c-v2-production-design-implementation--complete)
 - **Integrity & Bounds:** Pinned Room v4 schema (no DB alterations); pinned snapshot wire format (no JSON codec alterations); Persian RTL, digits, and legacy integer Rial math preserved. Physical Redmi Note 9S (`4c1ad625`) remained untouched.
-- **Next steps:** Ready for product owner review and direction toward the Cafe Bazaar release readiness gates (production signing key, package ID confirmation, Bazaar metadata).
+- **Next steps:** Follow the [Cafe Bazaar release checklist](docs/delivery/BAZAAR_RELEASE_READINESS.md). RC5 physical evidence covers the focused M4-to-RC5 upgrade. The distinct M4 physical gate and public release readiness remain open. Cloud deployment and account deletion remain deferred.
 
 ## Read first
 
