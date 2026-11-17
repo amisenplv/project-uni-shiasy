@@ -8,17 +8,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,10 +42,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -78,10 +82,20 @@ internal fun RemindersScreen(
     viewModel: RemindersViewModel,
     notificationOptions: @Composable () -> Unit,
     bottomBar: @Composable () -> Unit = {},
+    newReminderRequestCount: Int = 0,
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
     val list = state.list.takeIf { state.observedVehicleId == vehicle.id }
     val dueIds = list?.due.orEmpty().mapTo(hashSetOf()) { it.id }
+    val listState = rememberLazyListState()
+    val titleFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(newReminderRequestCount) {
+        if (newReminderRequestCount > 0) {
+            listState.animateScrollToItem(2)
+            titleFocusRequester.requestFocus()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -89,10 +103,11 @@ internal fun RemindersScreen(
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .safeDrawingPadding()
+                .consumeWindowInsets(paddingValues)
                 .imePadding()
                 .testTag("remindersScreen"),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
@@ -146,7 +161,7 @@ internal fun RemindersScreen(
 
             // New Reminder Form
             item {
-                ReminderForm(state, viewModel)
+                ReminderForm(state, viewModel, titleFocusRequester)
             }
 
             // Reminders list status
@@ -227,7 +242,11 @@ internal fun RemindersScreen(
 }
 
 @Composable
-private fun ReminderForm(state: RemindersUiState, viewModel: RemindersViewModel) {
+private fun ReminderForm(
+    state: RemindersUiState,
+    viewModel: RemindersViewModel,
+    titleFocusRequester: FocusRequester = remember { FocusRequester() },
+) {
     val semanticColors = LocalVehicleLogSemanticColors.current
     val draft = state.draft
     val titleError = state.showValidation && draft.title.isBlank()
@@ -260,7 +279,10 @@ private fun ReminderForm(state: RemindersUiState, viewModel: RemindersViewModel)
             OutlinedTextField(
                 value = draft.title,
                 onValueChange = { value -> viewModel.edit { it.copy(title = value) } },
-                modifier = Modifier.fillMaxWidth().testTag("reminderTitle"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(titleFocusRequester)
+                    .testTag("reminderTitle"),
                 label = { Text(stringResource(R.string.reminder_title_label)) },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.ContentOrRtl),
                 singleLine = true,
@@ -295,7 +317,7 @@ private fun ReminderForm(state: RemindersUiState, viewModel: RemindersViewModel)
                         shape = VehicleLogShapes.medium,
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.White,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                         ),
                         label = {
                             Text(
@@ -358,13 +380,16 @@ private fun ReminderForm(state: RemindersUiState, viewModel: RemindersViewModel)
                     .testTag("reminderSave"),
                 enabled = enabled,
                 shape = VehicleLogShapes.medium,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
             ) {
                 Text(
                     text = stringResource(if (state.writing) R.string.reminder_saving else R.string.reminder_save),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                     ),
                 )
             }
@@ -576,14 +601,17 @@ private fun ReminderCard(
                                 .testTag("reminderComplete:${reminder.id}")
                                 .semantics { contentDescription = completeDescription },
                             shape = VehicleLogShapes.medium,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
                             enabled = !state.writing,
                         ) {
                             Text(
                                 text = stringResource(R.string.reminder_complete_action),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                 ),
                             )
                         }

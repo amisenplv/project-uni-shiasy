@@ -6,7 +6,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,8 +40,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -144,6 +143,7 @@ internal fun LedgerHost(
 
     val currentVehicle = vehicle ?: reminderVehicle ?: homeState?.selectedVehicle
     var showEntrySelector by rememberSaveable { mutableStateOf(false) }
+    var reminderAddTrigger by rememberSaveable { mutableIntStateOf(0) }
 
     if (showEntrySelector && currentVehicle != null) {
         EntrySelectorSheet(
@@ -195,7 +195,7 @@ internal fun LedgerHost(
                 },
                 onPrimaryAction = {
                     if (activeTab == MainTab.REMINDERS) {
-                        // Reminders primary action
+                        reminderAddTrigger++
                     } else if (currentVehicle != null) {
                         showEntrySelector = true
                     }
@@ -248,7 +248,14 @@ internal fun LedgerHost(
             }
             if (reminderVehicle != null) {
                 BackHandler(onBack = reminders::back)
-                RemindersScreen(reminderVehicle, checkNotNull(reminderState), reminders, reminderNotificationOptions, bottomBar = dockComposable)
+                RemindersScreen(
+                    vehicle = reminderVehicle,
+                    state = checkNotNull(reminderState),
+                    viewModel = reminders,
+                    notificationOptions = reminderNotificationOptions,
+                    bottomBar = dockComposable,
+                    newReminderRequestCount = reminderAddTrigger,
+                )
                 return
             }
         }
@@ -265,7 +272,7 @@ internal fun LedgerHost(
             remindersFailed = homeReminders?.loadFailed == true,
             onRetryReminders = reminders?.let { it::retry },
             onOpenSettings = backupSettings?.let { it::open },
-            onOpenGeneralExpense = ledger::openQuickAdd,
+            onOpenGeneralExpense = { selected -> ledger.openQuickAdd(selected, EntryCategory.Other) },
             bottomBar = dockComposable,
         )
     } else {
@@ -292,7 +299,7 @@ private fun HistoryView(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .safeDrawingPadding(),
+                .consumeWindowInsets(paddingValues),
         ) {
             // Notebook Top Bar
             Row(
@@ -541,8 +548,7 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
             modifier = Modifier
                 .weight(1f)
                 .clickable { ledger.editEntry(entry.id) }
-                .testTag("ledgerRecent:${entry.id}")
-                .testTag("ledgerEntry:${entry.id}"),
+                .testTag("ledgerRecent:${entry.id}"),
             shape = VehicleLogShapes.medium,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -602,7 +608,7 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
                             )
                         } else {
                             Text(
-                                "مبلغ ثبت نشده",
+                                stringResource(R.string.ledger_unpriced),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -937,39 +943,10 @@ private fun CategoryField(category: EntryCategory, enabled: Boolean, onSelect: (
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.ledger_category), style = MaterialTheme.typography.labelMedium)
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            for (option in EntryCategory.entries) {
-                val isSelected = option == category
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onSelect(option) },
-                    label = {
-                        Text(
-                            stringResource(option.label),
-                            maxLines = 1,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    },
-                    enabled = enabled,
-                    shape = VehicleLogShapes.small,
-                    modifier = Modifier.heightIn(min = 38.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                )
-            }
-        }
-
         Box(Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).testTag("ledgerCategory"),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ledgerCategory"),
                 enabled = enabled,
                 shape = VehicleLogShapes.medium,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),

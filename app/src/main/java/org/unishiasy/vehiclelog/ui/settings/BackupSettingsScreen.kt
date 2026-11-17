@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -176,7 +175,7 @@ internal fun BackupSettingsScreen(
                                     shape = VehicleLogShapes.medium,
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = Color.White,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                     ),
                                     label = {
                                         Text(
@@ -311,14 +310,17 @@ internal fun BackupSettingsScreen(
                                 .heightIn(min = 48.dp)
                                 .testTag("backupExport"),
                             shape = VehicleLogShapes.medium,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
                             enabled = idle,
                         ) {
                             Text(
                                 text = stringResource(R.string.backup_export),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                 ),
                             )
                         }

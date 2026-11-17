@@ -28,12 +28,28 @@ data class HomeUiState(
             ?: vehicles?.firstOrNull()
 }
 
+class SelectedVehiclePreferences(context: android.content.Context) {
+    private val prefs = context.getSharedPreferences("vehicle_log_selection", android.content.Context.MODE_PRIVATE)
+
+    fun getSelectedVehicleId(): String? = prefs.getString(KEY_SELECTED_VEHICLE_ID, null)
+
+    fun setSelectedVehicleId(vehicleId: String) {
+        prefs.edit().putString(KEY_SELECTED_VEHICLE_ID, vehicleId).apply()
+    }
+
+    companion object {
+        private const val KEY_SELECTED_VEHICLE_ID = "selected_vehicle_id"
+    }
+}
+
 class HomeViewModel(
     private val vehicleRepository: VehicleRepository,
     private val ledgerRepository: LedgerRepository,
     coroutineScope: CoroutineScope? = null,
+    initialSelectedVehicleId: String? = null,
+    private val onPersistSelectedVehicleId: (String) -> Unit = {},
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(HomeUiState())
+    private val mutableState = MutableStateFlow(HomeUiState(selectedVehicleId = initialSelectedVehicleId))
     val state = mutableState.asStateFlow()
 
     private val scope: CoroutineScope = coroutineScope ?: viewModelScope
@@ -46,6 +62,7 @@ class HomeViewModel(
 
     fun selectVehicle(vehicleId: String) {
         if (state.value.selectedVehicleId == vehicleId) return
+        onPersistSelectedVehicleId(vehicleId)
         mutableState.update {
             it.copy(
                 selectedVehicleId = vehicleId,
@@ -70,15 +87,18 @@ class HomeViewModel(
                     mutableState.update { it.copy(listFailed = true) }
                 }
                 .collect { list ->
+                    var resolvedId: String? = null
                     mutableState.update { current ->
                         val selectedId = current.selectedVehicleId?.takeIf { id -> list.any { it.id == id } }
                             ?: list.firstOrNull()?.id
+                        resolvedId = selectedId
                         current.copy(
                             vehicles = list,
                             selectedVehicleId = selectedId,
                             listFailed = false,
                         )
                     }
+                    resolvedId?.let(onPersistSelectedVehicleId)
                     observeMileageForSelected()
                 }
         }

@@ -35,6 +35,7 @@ class AppContainer(context: Context) {
     }
 
     val appearancePreferences by lazy { org.unishiasy.vehiclelog.ui.settings.AppearancePreferences(applicationContext) }
+    val selectedVehiclePreferences by lazy { org.unishiasy.vehiclelog.ui.home.SelectedVehiclePreferences(applicationContext) }
     val vehicleRepository by lazy { VehicleRepository(database.vehicleDao()) }
     val ledgerRepository by lazy { LedgerRepository(database) }
     val reminderRepository: ReminderRepository by lazy {

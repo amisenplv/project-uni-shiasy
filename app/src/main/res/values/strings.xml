@@ -213,4 +213,6 @@
     <string name="entry_type_selector_title">نوع ثبت</string>
     <string name="vehicle_select_title">انتخاب خودرو</string>
     <string name="manage_vehicles">مدیریت خودروها</string>
+    <string name="ledger_unpriced">مبلغ ثبت نشده</string>
+    <string name="vehicle_model_year">مدل %1$s</string>
 </resources>

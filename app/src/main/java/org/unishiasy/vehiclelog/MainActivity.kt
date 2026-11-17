@@ -42,7 +42,12 @@ class MainActivity : ComponentActivity() {
         viewModelFactory {
             initializer {
                 val app = application as VehicleLedgerApplication
-                HomeViewModel(app.container.vehicleRepository, app.container.ledgerRepository)
+                HomeViewModel(
+                    vehicleRepository = app.container.vehicleRepository,
+                    ledgerRepository = app.container.ledgerRepository,
+                    initialSelectedVehicleId = app.container.selectedVehiclePreferences.getSelectedVehicleId(),
+                    onPersistSelectedVehicleId = app.container.selectedVehiclePreferences::setSelectedVehicleId,
+                )
             }
         }
     }
