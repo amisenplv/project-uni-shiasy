@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -57,6 +60,8 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.math.BigDecimal
+import kotlinx.coroutines.delay
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.data.local.ReminderEntity
@@ -64,6 +69,8 @@ import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.NoticeBanner
+import org.unishiasy.vehiclelog.ui.components.NoticeTone
 import org.unishiasy.vehiclelog.ui.components.VehicleSwitcherSheet
 import org.unishiasy.vehiclelog.ui.reminders.ReminderThresholdText
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
@@ -84,6 +91,10 @@ internal fun HomeScreen(
     onRetryReminders: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     onOpenGeneralExpense: ((VehicleEntity) -> Unit)? = null,
+    onManageVehicles: (() -> Unit)? = null,
+    onOpenEntry: ((VehicleEntity, String) -> Unit)? = null,
+    showVehicleSavedBanner: Boolean = false,
+    onDismissVehicleSaved: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -92,12 +103,19 @@ internal fun HomeScreen(
     val semanticColors = LocalVehicleLogSemanticColors.current
     var showVehicleSwitcher by rememberSaveable { mutableStateOf(false) }
 
+    LaunchedEffect(showVehicleSavedBanner) {
+        if (showVehicleSavedBanner) {
+            delay(3_500)
+            onDismissVehicleSaved()
+        }
+    }
+
     if (showVehicleSwitcher && selectedVehicle != null) {
         VehicleSwitcherSheet(
             vehicles = vehicles,
             selectedVehicleId = selectedVehicle.id,
             onSelectVehicle = viewModel::selectVehicle,
-            onManageVehicles = onAddVehicle,
+            onManageVehicles = onManageVehicles ?: onAddVehicle,
             onDismiss = { showVehicleSwitcher = false },
         )
     }
@@ -165,6 +183,14 @@ internal fun HomeScreen(
                         )
                     }
                 }
+            }
+
+            if (showVehicleSavedBanner) {
+                NoticeBanner(
+                    title = stringResource(R.string.vehicle_saved),
+                    tone = NoticeTone.Success,
+                    modifier = Modifier.testTag("homeVehicleSavedBanner"),
+                )
             }
 
             // Multi-Vehicle Selector Cards (Visible when multiple vehicles are registered)
@@ -286,7 +312,14 @@ internal fun HomeScreen(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClickLabel = stringResource(R.string.vehicle_select_title)) {
+                                        showVehicleSwitcher = true
+                                    }
+                                    .testTag("homeOpenVehicleSwitcher"),
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -389,70 +422,85 @@ internal fun HomeScreen(
                     }
                 }
 
-                // Paired Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    // Primary Action: Fuel Entry (High Contrast Cobalt)
-                    Button(
-                        onClick = { onQuickAdd(selectedVehicle) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("homeQuickAdd"),
-                        shape = VehicleLogShapes.medium,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // Paired Action Buttons (responsive stack at high fontScale or narrow widths)
+                val fontScale = LocalDensity.current.fontScale
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val stackActions = fontScale >= 1.35f || maxWidth < 360.dp
+                    val fuelButton: @Composable (Modifier) -> Unit = { btnModifier ->
+                        Button(
+                            onClick = { onQuickAdd(selectedVehicle) },
+                            modifier = btnModifier
+                                .heightIn(min = 48.dp)
+                                .testTag("homeQuickAdd"),
+                            shape = VehicleLogShapes.medium,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_fuel),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Text(
-                                stringResource(R.string.home_log_fuel),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_fuel),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    stringResource(R.string.home_log_fuel),
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
                     }
-
-                    // Secondary Action: Other Expense / Service Entry
-                    OutlinedButton(
-                        onClick = {
-                            if (onOpenGeneralExpense != null) {
-                                onOpenGeneralExpense(selectedVehicle)
-                            } else {
-                                onQuickAdd(selectedVehicle)
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("homeAddExpense"),
-                        shape = VehicleLogShapes.medium,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    val expenseButton: @Composable (Modifier) -> Unit = { btnModifier ->
+                        OutlinedButton(
+                            onClick = {
+                                if (onOpenGeneralExpense != null) {
+                                    onOpenGeneralExpense(selectedVehicle)
+                                } else {
+                                    onQuickAdd(selectedVehicle)
+                                }
+                            },
+                            modifier = btnModifier
+                                .heightIn(min = 48.dp)
+                                .testTag("homeAddExpense"),
+                            shape = VehicleLogShapes.medium,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_plus),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                stringResource(R.string.home_log_expense),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_plus),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Text(
+                                    stringResource(R.string.home_log_expense),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
+                    if (stackActions) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            fuelButton(Modifier.fillMaxWidth())
+                            expenseButton(Modifier.fillMaxWidth())
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            fuelButton(Modifier.weight(1f))
+                            expenseButton(Modifier.weight(1f))
                         }
                     }
                 }
@@ -509,7 +557,7 @@ internal fun HomeScreen(
                                             Text(
                                                 stringResource(R.string.reminders_status_due_badge),
                                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                color = semanticColors.onWarningEdge,
                                             )
                                         }
                                     }
@@ -538,7 +586,7 @@ internal fun HomeScreen(
                         TextButton(
                             onClick = { onOpenHistory(selectedVehicle) },
                             modifier = Modifier
-                                .heightIn(min = 40.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("homeOpenHistory"),
                         ) {
                             Text(
@@ -570,61 +618,27 @@ internal fun HomeScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             for (entry in recent) {
-                                RecentEntryRow(entry, onClick = { onOpenHistory(selectedVehicle) })
+                                RecentEntryRow(
+                                    entry = entry,
+                                    onClick = {
+                                        if (onOpenEntry != null) onOpenEntry(selectedVehicle, entry.id)
+                                        else onOpenHistory(selectedVehicle)
+                                    },
+                                )
                             }
                         }
                     }
                 }
 
-                // Bottom Cards: Monthly Report & Reminders
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    OutlinedCard(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 56.dp)
-                            .clickable { onOpenDashboard(selectedVehicle) }
-                            .testTag("homeOpenDashboard"),
-                        shape = VehicleLogShapes.medium,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(semanticColors.wash),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_chart),
-                                    contentDescription = null,
-                                    tint = semanticColors.action,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                            Text(
-                                stringResource(R.string.home_notebook_report),
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    if (onOpenReminders != null) {
+                // Bottom Cards: Monthly Report & Reminders (responsive stack at high fontScale or narrow widths)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val stackBottomCards = fontScale >= 1.35f || maxWidth < 360.dp
+                    val dashboardCard: @Composable (Modifier) -> Unit = { cardModifier ->
                         OutlinedCard(
-                            modifier = Modifier
-                                .weight(1f)
+                            modifier = cardModifier
                                 .heightIn(min = 56.dp)
-                                .clickable { onOpenReminders(selectedVehicle) }
-                                .testTag("homeOpenReminders"),
+                                .clickable { onOpenDashboard(selectedVehicle) }
+                                .testTag("homeOpenDashboard"),
                             shape = VehicleLogShapes.medium,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                             colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -642,18 +656,74 @@ internal fun HomeScreen(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        painter = painterResource(R.drawable.ic_bell),
+                                        painter = painterResource(R.drawable.ic_chart),
                                         contentDescription = null,
                                         tint = semanticColors.action,
                                         modifier = Modifier.size(18.dp),
                                     )
                                 }
                                 Text(
-                                    stringResource(R.string.home_notebook_reminders),
+                                    stringResource(R.string.home_notebook_report),
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                             }
+                        }
+                    }
+                    val remindersCard: @Composable (Modifier) -> Unit = { cardModifier ->
+                        if (onOpenReminders != null) {
+                            OutlinedCard(
+                                modifier = cardModifier
+                                    .heightIn(min = 56.dp)
+                                    .clickable { onOpenReminders(selectedVehicle) }
+                                    .testTag("homeOpenReminders"),
+                                shape = VehicleLogShapes.medium,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(semanticColors.wash),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_bell),
+                                            contentDescription = null,
+                                            tint = semanticColors.action,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                    Text(
+                                        stringResource(R.string.home_notebook_reminders),
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (stackBottomCards) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            dashboardCard(Modifier.fillMaxWidth())
+                            remindersCard(Modifier.fillMaxWidth())
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            dashboardCard(Modifier.weight(1f))
+                            remindersCard(Modifier.weight(1f))
                         }
                     }
                 }
@@ -721,7 +791,8 @@ private fun RecentEntryRow(entry: HistoryEntry, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .testTag("homeRecent:${entry.id}"),
         shape = VehicleLogShapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -788,9 +859,13 @@ private fun RecentEntryRow(entry: HistoryEntry, onClick: () -> Unit) {
                     )
                 }
                 if (entry.fuelVolumeMl != null && entry.fuelVolumeMl > 0) {
-                    val liters = String.format(java.util.Locale.US, "%.1f", entry.fuelVolumeMl / 1000.0).withPersianDigits()
+                    val liters = BigDecimal.valueOf(entry.fuelVolumeMl, 3)
+                        .stripTrailingZeros()
+                        .toPlainString()
+                        .replace('.', '٫')
+                        .withPersianDigits()
                     Text(
-                        stringResource(R.string.ledger_liters, liters),
+                        stringResource(R.string.ledger_liters, "\u2066$liters\u2069"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

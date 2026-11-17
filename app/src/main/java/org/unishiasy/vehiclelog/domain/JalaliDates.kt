@@ -64,9 +64,68 @@ internal object JalaliDates {
     fun formatJalaliInput(occurredOn: String): String? {
         val date = parseGregorian(occurredOn) ?: return null
         val jalali = jalaliParts(date) ?: return null
-        val month = jalali.month.toString().padStart(2, '0')
-        val day = jalali.day.toString().padStart(2, '0')
-        return "${jalali.year}/$month/$day".withPersianDigits()
+        return formatJalaliParts(jalali.year, jalali.month, jalali.day)
+    }
+
+    fun formatJalaliParts(year: Int, month: Int, day: Int): String {
+        val monthStr = month.toString().padStart(2, '0')
+        val dayStr = day.toString().padStart(2, '0')
+        return "$year/$monthStr/$dayStr".withPersianDigits()
+    }
+
+    fun isLeapYear(year: Int): Boolean = year in leapYears
+
+    fun monthLength(year: Int, month: Int): Int {
+        if (year !in firstSupportedYear..lastSupportedYear || month !in 1..12) return 0
+        return when {
+            month <= 6 -> 31
+            month == 12 && year !in leapYears -> 29
+            else -> 30
+        }
+    }
+
+    fun monthName(month: Int): String = monthNames[month - 1]
+
+    fun toLocalDate(year: Int, month: Int, day: Int): LocalDate? {
+        val maxDay = monthLength(year, month)
+        if (maxDay == 0 || day !in 1..maxDay) return null
+        val epochDay = yearStarts[year - firstSupportedYear] + daysBeforeMonth(month) + day - 1
+        return LocalDate.ofEpochDay(epochDay)
+    }
+
+    /**
+     * Returns Saturday-first weekday index of the 1st of [year]/[month]:
+     * 0 = شنبه (Saturday), 1 = یکشنبه (Sunday), ..., 6 = جمعه (Friday).
+     */
+    fun dayOfWeekOfFirst(year: Int, month: Int): Int? {
+        val first = toLocalDate(year, month, 1) ?: return null
+        return (first.dayOfWeek.value + 1) % 7
+    }
+
+    fun jalaliPartsOf(date: LocalDate): JalaliDateParts? =
+        jalaliParts(date)?.let { JalaliDateParts(it.year, it.month, it.day) }
+
+    fun parseJalaliParts(input: String): JalaliDateParts? {
+        val match = inputPattern.matchEntire(input.trim().normalizeInputDigits()) ?: return null
+        val (yearText, _, monthText, dayText) = match.destructured
+        val year = yearText.toInt()
+        val month = monthText.toInt()
+        val day = dayText.toInt()
+        val maxDay = monthLength(year, month)
+        if (maxDay == 0 || day !in 1..maxDay) return null
+        return JalaliDateParts(year, month, day)
+    }
+
+    fun addMonths(gregorianDate: String, months: Int): String? {
+        val date = parseGregorian(gregorianDate) ?: return null
+        val parts = jalaliParts(date) ?: return null
+        val totalMonths = parts.year * 12 + (parts.month - 1) + months
+        val targetYear = Math.floorDiv(totalMonths, 12)
+        val targetMonth = Math.floorMod(totalMonths, 12) + 1
+        val maxDay = monthLength(targetYear, targetMonth)
+        if (maxDay == 0) return null
+        val targetDay = minOf(parts.day, maxDay)
+        return toLocalDate(targetYear, targetMonth, targetDay)?.toString()
     }
 
     fun monthOf(date: LocalDate): JalaliMonth? =
@@ -108,3 +167,5 @@ internal object JalaliDates {
     private fun daysBeforeMonth(month: Int): Int =
         if (month <= 6) (month - 1) * 31 else daysInFirstSixMonths + (month - 7) * 30
 }
+
+internal data class JalaliDateParts(val year: Int, val month: Int, val day: Int)

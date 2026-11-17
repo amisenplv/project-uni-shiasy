@@ -2,7 +2,7 @@
 
 **Document Status:** Baseline Takeover Specification (Verified against repository source on 2026-11-17)
 **Target Distribution:** Cafe Bazaar (Iran — Persian-first, RTL, Offline-first Android)
-**Package / Namespace:** `applicationId = org.amirariana.vehiclelog` (`release`) / `.debug` (`debug`); Kotlin `namespace = org.unishiasy.vehiclelog`
+**Package / Namespace:** `applicationId = org.mewlog.vehiclelog` (`release`) / `.debug` (`debug`); Kotlin `namespace = org.unishiasy.vehiclelog`
 **Version Baseline:** `versionCode = 1`, `versionName = "0.1.0"`, `minSdk = 26`, `targetSdk = 36`, `compileSdk = 36`
 
 ---

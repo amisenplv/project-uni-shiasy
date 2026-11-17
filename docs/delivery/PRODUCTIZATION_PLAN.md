@@ -295,9 +295,9 @@
 
 ## Explicit Decision & Approval Gates
 
-| Gate | Trigger Before Execution | Requires Owner Decision On |
+| Gate | Trigger Before Execution | Status / Decision |
 | :--- | :--- | :--- |
-| **Gate G0 (Immediate)** | Before starting P0.1 | Approval of this `PRODUCTIZATION_PLAN.md` & permission to start P0.1–P0.4. |
-| **Gate G1 (Test Dependencies)** | Before P1.1 | Approval to add `robolectric` & `ui-test-junit4` (`testImplementation` only) in `libs.versions.toml` / `app/build.gradle.kts`. |
-| **Gate G2 (Release Config)** | Before P1.7 | Confirm release R8 minification (`isMinifyEnabled = true`) & finalize `applicationId` (`org.amirariana.vehiclelog`). |
+| **Gate G0 (Immediate)** | Before starting P0.1 | **APPROVED (2026-11-17)** — Start P0.1 → P0.4. |
+| **Gate G1 (Test Dependencies)** | Before P1.1 | **APPROVED (2026-11-17)** — Approved adding `robolectric` & `ui-test-junit4` (`testImplementation` only). |
+| **Gate G2 (Release Config)** | Before P1.7 | `applicationId` updated to **`org.mewlog.vehiclelog`** per owner instruction. Release R8 minification (`isMinifyEnabled = true`) pending confirmation before P1.7. |
 | **Gate G3 (Data Lifecycle)** | Before P2.2 | Decide Vehicle Delete (transactional cascade with confirm) vs Soft-Archive (requires Room v5 migration), and whether to ship a bundled Iranian vehicle catalog JSON. |

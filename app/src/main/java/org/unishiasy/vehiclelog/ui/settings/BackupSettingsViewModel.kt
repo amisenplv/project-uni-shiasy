@@ -2,6 +2,7 @@ package org.unishiasy.vehiclelog.ui.settings
 
 import android.content.ContentResolver
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,21 +23,22 @@ internal data class BackupSettingsState(
 internal class BackupSettingsViewModel(
     private val repository: BackupRepository,
     private val resolver: ContentResolver,
+    private val savedStateHandle: SavedStateHandle? = null,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(BackupSettingsState())
+    private val mutableState = MutableStateFlow(restoreInitialState(savedStateHandle))
     val state = mutableState.asStateFlow()
 
     fun open() {
-        mutableState.value = BackupSettingsState(open = true)
+        setState(BackupSettingsState(open = true))
     }
 
     fun back() {
-        if (state.value.action == null) mutableState.value = BackupSettingsState()
+        if (state.value.action == null) setState(BackupSettingsState())
     }
 
     fun startPicker(action: BackupAction): Boolean {
         if (!state.value.open || state.value.action != null) return false
-        mutableState.value = BackupSettingsState(open = true, action = action)
+        setState(BackupSettingsState(open = true, action = action))
         return true
     }
 
@@ -54,7 +56,7 @@ internal class BackupSettingsViewModel(
             finish(BackupOutcome.FileUnavailable)
             return
         }
-        mutableState.value = state.value.copy(working = true)
+        setState(state.value.copy(working = true))
         viewModelScope.launch {
             val outcome = when (action) {
                 BackupAction.Export -> repository.export { resolver.openOutputStream(uri, "wt") }
@@ -65,6 +67,28 @@ internal class BackupSettingsViewModel(
     }
 
     private fun finish(outcome: BackupOutcome) {
-        mutableState.value = BackupSettingsState(open = true, outcome = outcome)
+        setState(BackupSettingsState(open = true, outcome = outcome))
+    }
+
+    private fun setState(next: BackupSettingsState) {
+        mutableState.value = next
+        savedStateHandle?.let { handle ->
+            handle[KEY_OPEN] = next.open
+            handle[KEY_ACTION] = next.action?.name
+        }
+    }
+
+    companion object {
+        private const val KEY_OPEN = "backup_vm_open"
+        private const val KEY_ACTION = "backup_vm_action"
+
+        private fun restoreInitialState(handle: SavedStateHandle?): BackupSettingsState {
+            if (handle == null) return BackupSettingsState()
+            val open = handle.get<Boolean>(KEY_OPEN) == true
+            val action = handle.get<String>(KEY_ACTION)?.let { name ->
+                BackupAction.entries.firstOrNull { it.name == name }
+            }
+            return BackupSettingsState(open = open, action = action)
+        }
     }
 }

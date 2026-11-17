@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import org.unishiasy.vehiclelog.ui.home.HomeViewModel
@@ -27,14 +28,18 @@ class MainActivity : ComponentActivity() {
         viewModelFactory {
             initializer {
                 val app = application as VehicleLedgerApplication
-                VehicleViewModel(app.container.vehicleRepository, app.container::loadVehicleCatalog)
+                VehicleViewModel(
+                    repository = app.container.vehicleRepository,
+                    savedStateHandle = createSavedStateHandle(),
+                    loadCatalog = app.container::loadVehicleCatalog,
+                )
             }
         }
     }
     private val ledgerViewModel: LedgerViewModel by viewModels {
         viewModelFactory {
             initializer {
-                LedgerViewModel((application as VehicleLedgerApplication).container.ledgerRepository)
+                LedgerViewModel((application as VehicleLedgerApplication).container.ledgerRepository, savedStateHandle = createSavedStateHandle())
             }
         }
     }
@@ -56,7 +61,7 @@ class MainActivity : ComponentActivity() {
         viewModelFactory {
             initializer {
                 val container = (application as VehicleLedgerApplication).container
-                RemindersViewModel(container.reminderRepository, container.ledgerRepository)
+                RemindersViewModel(container.reminderRepository, container.ledgerRepository, savedStateHandle = createSavedStateHandle())
             }
         }
     }
@@ -65,7 +70,7 @@ class MainActivity : ComponentActivity() {
         viewModelFactory {
             initializer {
                 val app = application as VehicleLedgerApplication
-                BackupSettingsViewModel(app.container.backupRepository, app.contentResolver)
+                BackupSettingsViewModel(app.container.backupRepository, app.contentResolver, createSavedStateHandle())
             }
         }
     }

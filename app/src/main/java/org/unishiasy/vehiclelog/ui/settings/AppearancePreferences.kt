@@ -1,6 +1,7 @@
 package org.unishiasy.vehiclelog.ui.settings
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +28,7 @@ class AppearancePreferences(context: Context) {
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     fun setThemeMode(mode: ThemeMode) {
-        prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
+        prefs.edit { putString(KEY_THEME_MODE, mode.name) }
         _themeMode.value = mode
     }
 

@@ -1,6 +1,7 @@
 package org.unishiasy.vehiclelog.ui.home
 
 import android.database.sqlite.SQLiteException
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -34,7 +35,7 @@ class SelectedVehiclePreferences(context: android.content.Context) {
     fun getSelectedVehicleId(): String? = prefs.getString(KEY_SELECTED_VEHICLE_ID, null)
 
     fun setSelectedVehicleId(vehicleId: String) {
-        prefs.edit().putString(KEY_SELECTED_VEHICLE_ID, vehicleId).apply()
+        prefs.edit { putString(KEY_SELECTED_VEHICLE_ID, vehicleId) }
     }
 
     companion object {

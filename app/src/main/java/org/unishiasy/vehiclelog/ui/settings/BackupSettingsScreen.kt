@@ -9,15 +9,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -33,7 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -91,14 +93,15 @@ internal fun BackupSettingsScreen(
     val idle = state.action == null
     BackHandler(onBack = viewModel::back)
 
-    Surface(
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .safeDrawingPadding()
+                .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp)
                 .testTag("backupSettings"),
@@ -155,39 +158,78 @@ internal fun BackupSettingsScreen(
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            val options = listOf(
-                                ThemeMode.SYSTEM to R.string.settings_appearance_system,
-                                ThemeMode.LIGHT to R.string.settings_appearance_light,
-                                ThemeMode.DARK to R.string.settings_appearance_dark,
-                            )
-                            for ((mode, stringRes) in options) {
-                                val isSelected = currentThemeMode == mode
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { prefs.setThemeMode(mode) },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .heightIn(min = 44.dp),
-                                    shape = VehicleLogShapes.medium,
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                    ),
-                                    label = {
-                                        Text(
-                                            text = stringResource(stringRes),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textAlign = TextAlign.Center,
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        val fontScale = LocalDensity.current.fontScale
+                        val options = listOf(
+                            ThemeMode.SYSTEM to R.string.settings_appearance_system,
+                            ThemeMode.LIGHT to R.string.settings_appearance_light,
+                            ThemeMode.DARK to R.string.settings_appearance_dark,
+                        )
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val stackModes = fontScale >= 1.35f || maxWidth < 360.dp
+                            if (stackModes) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    for ((mode, stringRes) in options) {
+                                        val isSelected = currentThemeMode == mode
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { prefs.setThemeMode(mode) },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(min = 48.dp)
+                                                .testTag("themeMode:${mode.name}"),
+                                            shape = VehicleLogShapes.medium,
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                             ),
+                                            label = {
+                                                Text(
+                                                    text = stringResource(stringRes),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    textAlign = TextAlign.Center,
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    ),
+                                                )
+                                            },
                                         )
-                                    },
-                                )
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    for ((mode, stringRes) in options) {
+                                        val isSelected = currentThemeMode == mode
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { prefs.setThemeMode(mode) },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 48.dp)
+                                                .testTag("themeMode:${mode.name}"),
+                                            shape = VehicleLogShapes.medium,
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                            ),
+                                            label = {
+                                                Text(
+                                                    text = stringResource(stringRes),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    textAlign = TextAlign.Center,
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    ),
+                                                )
+                                            },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

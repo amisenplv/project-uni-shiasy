@@ -1,9 +1,11 @@
 package org.unishiasy.vehiclelog.ui.ledger
 
 import android.database.sqlite.SQLiteException
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import java.time.Clock
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -16,9 +18,9 @@ import kotlinx.coroutines.launch
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.EntrySaveResult
 import org.unishiasy.vehiclelog.data.LedgerRepository
-import org.unishiasy.vehiclelog.data.local.EntryEntity
 import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
+import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.JalaliMonth
 
 internal data class LedgerUiState(
@@ -42,40 +44,65 @@ internal data class LedgerUiState(
 internal class LedgerViewModel(
     private val repository: LedgerRepository,
     private val clock: Clock = Clock.systemUTC(),
+    private val savedStateHandle: SavedStateHandle? = null,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(LedgerUiState())
+    private val mutableState = MutableStateFlow(restoreInitialState(savedStateHandle))
     val state = mutableState.asStateFlow()
     private var observation: Job? = null
     private var dashboardObservation: Job? = null
 
+    init {
+        val restored = mutableState.value
+        val vehicle = restored.vehicle
+        if (vehicle != null) {
+            observe(vehicle.id)
+            if (restored.dashboard != null) {
+                observeDashboard(vehicle.id)
+            }
+        }
+    }
+
+    fun todayDate(): LocalDate = JalaliDates.captureDefaultDate(clock)
+
     fun openVehicle(vehicle: VehicleEntity) {
         if (state.value.vehicle != null) return
-        mutableState.value = LedgerUiState(vehicle = vehicle)
+        setState(LedgerUiState(vehicle = vehicle))
         observe(vehicle.id)
     }
 
     fun openQuickAdd(vehicle: VehicleEntity, initialCategory: EntryCategory = EntryCategory.Fuel) {
         if (state.value.vehicle != null) return
-        mutableState.value = LedgerUiState(
-            vehicle = vehicle,
-            draft = EntryDraft.create(vehicle.id, clock).copy(category = initialCategory),
+        setState(
+            LedgerUiState(
+                vehicle = vehicle,
+                draft = EntryDraft.create(vehicle.id, clock).copy(category = initialCategory),
+            )
         )
         observe(vehicle.id)
     }
 
     fun openDashboardForVehicle(vehicle: VehicleEntity) {
         if (state.value.vehicle != null) return
-        mutableState.value = LedgerUiState(
-            vehicle = vehicle,
-            dashboard = MonthlyDashboardState.open(clock),
+        setState(
+            LedgerUiState(
+                vehicle = vehicle,
+                dashboard = MonthlyDashboardState.open(clock),
+            )
         )
         observe(vehicle.id)
         observeDashboard(vehicle.id)
     }
 
+    fun openEntryFromHome(vehicle: VehicleEntity, entryId: String) {
+        if (state.value.vehicle != null) return
+        setState(LedgerUiState(vehicle = vehicle))
+        observe(vehicle.id)
+        editEntry(entryId)
+    }
+
     fun retryList() {
         val vehicle = state.value.vehicle ?: return
-        mutableState.update { it.copy(listFailed = false, entries = null) }
+        updateState { it.copy(listFailed = false, entries = null) }
         observe(vehicle.id)
     }
 
@@ -85,10 +112,10 @@ internal class LedgerViewModel(
             combine(repository.observeHistoryForVehicle(vehicleId), repository.observeCurrentMileage(vehicleId), ::Pair)
                 .catch { failure ->
                     if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
-                    mutableState.update { it.copy(listFailed = true) }
+                    updateState { it.copy(listFailed = true) }
                 }
                 .collect { (entries, mileage) ->
-                    mutableState.update { it.copy(entries = entries, latestMileage = mileage) }
+                    updateState { it.copy(entries = entries, latestMileage = mileage) }
                 }
         }
     }
@@ -99,19 +126,19 @@ internal class LedgerViewModel(
         if (current.dashboard != null || current.draft != null || current.openingEntry ||
             current.entryPendingDeletion != null || current.deleting
         ) return
-        mutableState.value = current.copy(dashboard = MonthlyDashboardState.open(clock))
+        setState(current.copy(dashboard = MonthlyDashboardState.open(clock)))
         observeDashboard(vehicle.id)
     }
 
     fun selectDashboardMonth(month: JalaliMonth) {
-        mutableState.update { it.copy(dashboard = it.dashboard?.select(month)) }
+        updateState { it.copy(dashboard = it.dashboard?.select(month)) }
     }
 
     fun retryDashboard() {
         val current = state.value
         val vehicle = current.vehicle ?: return
         val dashboard = current.dashboard?.takeIf { it.failed } ?: return
-        mutableState.value = current.copy(dashboard = dashboard.copy(report = null, failed = false))
+        setState(current.copy(dashboard = dashboard.copy(report = null, failed = false)))
         observeDashboard(vehicle.id)
     }
 
@@ -121,10 +148,10 @@ internal class LedgerViewModel(
             repository.observeMonthlyReport(vehicleId)
                 .catch { failure ->
                     if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
-                    mutableState.update { it.copy(dashboard = it.dashboard?.copy(failed = true)) }
+                    updateState { it.copy(dashboard = it.dashboard?.copy(failed = true)) }
                 }
                 .collect { report ->
-                    mutableState.update { it.copy(dashboard = it.dashboard?.copy(report = report, failed = false)) }
+                    updateState { it.copy(dashboard = it.dashboard?.copy(report = report, failed = false)) }
                 }
         }
     }
@@ -133,7 +160,7 @@ internal class LedgerViewModel(
         val current = state.value
         val vehicle = current.vehicle ?: return
         if (current.draft != null || current.openingEntry || current.deleting) return
-        mutableState.value = current.copy(draft = EntryDraft.create(vehicle.id, clock), result = null, lastActionWasDelete = false)
+        setState(current.copy(draft = EntryDraft.create(vehicle.id, clock), result = null, lastActionWasDelete = false))
     }
 
     fun editEntry(id: String) {
@@ -142,10 +169,10 @@ internal class LedgerViewModel(
         if (current.draft != null || current.openingEntry || current.deleting) return
         val uuid = runCatching { UUID.fromString(id) }.getOrNull()
         if (uuid == null) {
-            mutableState.update { it.copy(result = EntrySaveResult.NotFound, lastActionWasDelete = false) }
+            updateState { it.copy(result = EntrySaveResult.NotFound, lastActionWasDelete = false) }
             return
         }
-        mutableState.update { it.copy(openingEntry = true, result = null, lastActionWasDelete = false) }
+        updateState { it.copy(openingEntry = true, result = null, lastActionWasDelete = false) }
         viewModelScope.launch {
             val (draft, failure) = try {
                 val saved = repository.findWithReading(uuid)?.takeIf { it.entry.vehicleId == vehicle.id }
@@ -158,19 +185,19 @@ internal class LedgerViewModel(
             } catch (_: IllegalStateException) {
                 null to EntrySaveResult.StorageFailure
             }
-            mutableState.update { it.copy(draft = draft, openingEntry = false, result = failure) }
+            updateState { it.copy(draft = draft, openingEntry = false, result = failure) }
         }
     }
 
     fun requestDelete(id: String) {
         val current = state.value
         if (current.saving || current.openingEntry || current.deleting) return
-        mutableState.update { it.copy(entryPendingDeletion = id, result = null) }
+        updateState { it.copy(entryPendingDeletion = id, result = null) }
     }
 
     fun cancelDelete() {
         if (state.value.deleting) return
-        mutableState.update { it.copy(entryPendingDeletion = null) }
+        updateState { it.copy(entryPendingDeletion = null) }
     }
 
     fun confirmDelete() {
@@ -180,7 +207,7 @@ internal class LedgerViewModel(
         if (current.deleting) return
         val uuid = runCatching { UUID.fromString(entryId) }.getOrNull()
         if (uuid == null) {
-            mutableState.update {
+            updateState {
                 it.copy(
                     entryPendingDeletion = null,
                     result = EntrySaveResult.NotFound,
@@ -189,10 +216,10 @@ internal class LedgerViewModel(
             }
             return
         }
-        mutableState.update { it.copy(deleting = true) }
+        updateState { it.copy(deleting = true) }
         viewModelScope.launch {
             val result = repository.deleteEntry(vehicle.id, uuid)
-            mutableState.update {
+            updateState {
                 it.copy(
                     deleting = false,
                     entryPendingDeletion = null,
@@ -208,7 +235,7 @@ internal class LedgerViewModel(
         val current = state.value
         if (current.dashboard != null) {
             dashboardObservation?.cancel()
-            mutableState.value = current.copy(dashboard = null)
+            setState(current.copy(dashboard = null))
             return
         }
         if (current.saving || current.openingEntry || current.deleting) return
@@ -217,10 +244,10 @@ internal class LedgerViewModel(
             return
         }
         if (current.draft != null) {
-            mutableState.value = current.copy(draft = null, result = null, fieldErrors = emptyMap(), lastActionWasDelete = false)
+            setState(current.copy(draft = null, result = null, fieldErrors = emptyMap(), lastActionWasDelete = false))
         } else {
             observation?.cancel()
-            mutableState.value = LedgerUiState()
+            setState(LedgerUiState())
         }
     }
 
@@ -249,10 +276,12 @@ internal class LedgerViewModel(
         val mileageChanged = EntryField.Mileage in fields || EntryField.Date in fields
         val clearsConflict = mileageChanged && current.result == EntrySaveResult.MileageConflict
         val remainingErrors = current.fieldErrors - fields
-        mutableState.value = current.copy(
-            draft = transform(draft),
-            fieldErrors = if (clearsConflict) remainingErrors - EntryField.Mileage else remainingErrors,
-            result = current.result.takeIf { it == EntrySaveResult.MileageConflict && !mileageChanged },
+        setState(
+            current.copy(
+                draft = transform(draft),
+                fieldErrors = if (clearsConflict) remainingErrors - EntryField.Mileage else remainingErrors,
+                result = current.result.takeIf { it == EntrySaveResult.MileageConflict && !mileageChanged },
+            )
         )
     }
 
@@ -260,7 +289,7 @@ internal class LedgerViewModel(
         val current = state.value
         val draft = current.draft ?: return
         if (current.saving || current.result != EntrySaveResult.MileageConflict) return
-        mutableState.value = current.copy(draft = draft.copy(omitMileage = true))
+        setState(current.copy(draft = draft.copy(omitMileage = true)))
         save()
     }
 
@@ -269,16 +298,16 @@ internal class LedgerViewModel(
         val draft = current.draft ?: return
         if (current.saving) return
         when (val validation = draft.validate()) {
-            is DraftValidation.Invalid -> mutableState.value = current.copy(fieldErrors = validation.errors)
+            is DraftValidation.Invalid -> setState(current.copy(fieldErrors = validation.errors))
             is DraftValidation.Valid -> {
-                mutableState.value = current.copy(saving = true, fieldErrors = emptyMap(), result = null, lastActionWasDelete = false)
+                setState(current.copy(saving = true, fieldErrors = emptyMap(), result = null, lastActionWasDelete = false))
                 viewModelScope.launch {
                     val result = if (draft.editing) {
                         repository.update(draft.id, validation.input, validation.readingEdit)
                     } else {
                         repository.create(draft.id, draft.createdAt, validation.input, validation.kilometers)
                     }
-                    mutableState.update {
+                    updateState {
                         it.copy(
                             draft = it.draft.takeUnless { result == EntrySaveResult.Saved },
                             saving = false,
@@ -289,6 +318,144 @@ internal class LedgerViewModel(
                     }
                 }
             }
+        }
+    }
+
+    private fun setState(next: LedgerUiState) {
+        mutableState.value = next
+        persistState(next)
+    }
+
+    private inline fun updateState(transform: (LedgerUiState) -> LedgerUiState) {
+        var nextState: LedgerUiState? = null
+        mutableState.update { current ->
+            transform(current).also { nextState = it }
+        }
+        nextState?.let(::persistState)
+    }
+
+    private fun persistState(state: LedgerUiState) {
+        val handle = savedStateHandle ?: return
+        val vehicle = state.vehicle
+        handle[KEY_VEHICLE_PRESENT] = vehicle != null
+        handle[KEY_VEHICLE_ID] = vehicle?.id
+        handle[KEY_VEHICLE_KIND] = vehicle?.kind
+        handle[KEY_VEHICLE_LABEL] = vehicle?.displayLabel
+        handle[KEY_VEHICLE_CATALOG] = vehicle?.catalogKey
+        handle[KEY_VEHICLE_YEAR] = vehicle?.productionYear
+        handle[KEY_VEHICLE_CALENDAR] = vehicle?.productionYearCalendar
+
+        val draft = state.draft
+        handle[KEY_DRAFT_PRESENT] = draft != null
+        handle[KEY_DRAFT_VEHICLE_ID] = draft?.vehicleId
+        handle[KEY_DRAFT_ID] = draft?.id?.toString()
+        handle[KEY_DRAFT_CREATED_AT] = draft?.createdAt
+        handle[KEY_DRAFT_EDITING] = draft?.editing
+        handle[KEY_DRAFT_CATEGORY] = draft?.category?.key
+        handle[KEY_DRAFT_AMOUNT] = draft?.amount
+        handle[KEY_DRAFT_DATE] = draft?.date
+        handle[KEY_DRAFT_ORIGINAL_DATE] = draft?.originalGregorianDate
+        handle[KEY_DRAFT_VOLUME] = draft?.volume
+        handle[KEY_DRAFT_MILEAGE] = draft?.mileage
+        handle[KEY_DRAFT_ORIGINAL_MILEAGE] = draft?.originalMileage
+        handle[KEY_DRAFT_OMIT_MILEAGE] = draft?.omitMileage
+        handle[KEY_DRAFT_NOTES] = draft?.notes
+
+        val dashboard = state.dashboard
+        handle[KEY_DASHBOARD_OPEN] = dashboard != null
+        handle[KEY_DASHBOARD_CUR_YEAR] = dashboard?.currentMonth?.year
+        handle[KEY_DASHBOARD_CUR_MONTH] = dashboard?.currentMonth?.month
+        handle[KEY_DASHBOARD_SEL_YEAR] = dashboard?.selectedMonth?.year
+        handle[KEY_DASHBOARD_SEL_MONTH] = dashboard?.selectedMonth?.month
+    }
+
+    companion object {
+        private const val KEY_VEHICLE_PRESENT = "ledger_vm_vehicle_present"
+        private const val KEY_VEHICLE_ID = "ledger_vm_vehicle_id"
+        private const val KEY_VEHICLE_KIND = "ledger_vm_vehicle_kind"
+        private const val KEY_VEHICLE_LABEL = "ledger_vm_vehicle_label"
+        private const val KEY_VEHICLE_CATALOG = "ledger_vm_vehicle_catalog"
+        private const val KEY_VEHICLE_YEAR = "ledger_vm_vehicle_year"
+        private const val KEY_VEHICLE_CALENDAR = "ledger_vm_vehicle_calendar"
+
+        private const val KEY_DRAFT_PRESENT = "ledger_vm_draft_present"
+        private const val KEY_DRAFT_VEHICLE_ID = "ledger_vm_draft_vehicle_id"
+        private const val KEY_DRAFT_ID = "ledger_vm_draft_id"
+        private const val KEY_DRAFT_CREATED_AT = "ledger_vm_draft_created_at"
+        private const val KEY_DRAFT_EDITING = "ledger_vm_draft_editing"
+        private const val KEY_DRAFT_CATEGORY = "ledger_vm_draft_category"
+        private const val KEY_DRAFT_AMOUNT = "ledger_vm_draft_amount"
+        private const val KEY_DRAFT_DATE = "ledger_vm_draft_date"
+        private const val KEY_DRAFT_ORIGINAL_DATE = "ledger_vm_draft_original_date"
+        private const val KEY_DRAFT_VOLUME = "ledger_vm_draft_volume"
+        private const val KEY_DRAFT_MILEAGE = "ledger_vm_draft_mileage"
+        private const val KEY_DRAFT_ORIGINAL_MILEAGE = "ledger_vm_draft_original_mileage"
+        private const val KEY_DRAFT_OMIT_MILEAGE = "ledger_vm_draft_omit_mileage"
+        private const val KEY_DRAFT_NOTES = "ledger_vm_draft_notes"
+
+        private const val KEY_DASHBOARD_OPEN = "ledger_vm_dashboard_open"
+        private const val KEY_DASHBOARD_CUR_YEAR = "ledger_vm_dashboard_cur_year"
+        private const val KEY_DASHBOARD_CUR_MONTH = "ledger_vm_dashboard_cur_month"
+        private const val KEY_DASHBOARD_SEL_YEAR = "ledger_vm_dashboard_sel_year"
+        private const val KEY_DASHBOARD_SEL_MONTH = "ledger_vm_dashboard_sel_month"
+
+        private fun restoreInitialState(handle: SavedStateHandle?): LedgerUiState {
+            if (handle == null) return LedgerUiState()
+            val vehicle = if (handle.get<Boolean>(KEY_VEHICLE_PRESENT) == true) {
+                val id = handle.get<String>(KEY_VEHICLE_ID)
+                val kind = handle.get<String>(KEY_VEHICLE_KIND)
+                val label = handle.get<String>(KEY_VEHICLE_LABEL)
+                if (id != null && kind != null && label != null) {
+                    VehicleEntity(
+                        id = id,
+                        kind = kind,
+                        displayLabel = label,
+                        catalogKey = handle.get<String>(KEY_VEHICLE_CATALOG),
+                        productionYear = handle.get<Int>(KEY_VEHICLE_YEAR),
+                        productionYearCalendar = handle.get<String>(KEY_VEHICLE_CALENDAR),
+                    )
+                } else null
+            } else null
+            if (vehicle == null) return LedgerUiState()
+
+            val draft = if (handle.get<Boolean>(KEY_DRAFT_PRESENT) == true) {
+                val draftVehicleId = handle.get<String>(KEY_DRAFT_VEHICLE_ID)
+                val draftId = handle.get<String>(KEY_DRAFT_ID)?.let { raw ->
+                    runCatching { UUID.fromString(raw) }.getOrNull()
+                }
+                val createdAt = handle.get<Long>(KEY_DRAFT_CREATED_AT)
+                val categoryKey = handle.get<String>(KEY_DRAFT_CATEGORY)
+                val category = EntryCategory.entries.firstOrNull { it.key == categoryKey }
+                if (draftVehicleId != null && draftId != null && createdAt != null && category != null) {
+                    EntryDraft(
+                        vehicleId = draftVehicleId,
+                        id = draftId,
+                        createdAt = createdAt,
+                        editing = handle.get<Boolean>(KEY_DRAFT_EDITING) == true,
+                        category = category,
+                        amount = handle.get<String>(KEY_DRAFT_AMOUNT).orEmpty(),
+                        date = handle.get<String>(KEY_DRAFT_DATE).orEmpty(),
+                        originalGregorianDate = handle.get<String>(KEY_DRAFT_ORIGINAL_DATE),
+                        volume = handle.get<String>(KEY_DRAFT_VOLUME).orEmpty(),
+                        mileage = handle.get<String>(KEY_DRAFT_MILEAGE).orEmpty(),
+                        originalMileage = handle.get<Long>(KEY_DRAFT_ORIGINAL_MILEAGE),
+                        omitMileage = handle.get<Boolean>(KEY_DRAFT_OMIT_MILEAGE) == true,
+                        notes = handle.get<String>(KEY_DRAFT_NOTES).orEmpty(),
+                    )
+                } else null
+            } else null
+
+            val dashboard = if (handle.get<Boolean>(KEY_DASHBOARD_OPEN) == true) {
+                val curYear = handle.get<Int>(KEY_DASHBOARD_CUR_YEAR)
+                val curMonth = handle.get<Int>(KEY_DASHBOARD_CUR_MONTH)
+                val selYear = handle.get<Int>(KEY_DASHBOARD_SEL_YEAR)
+                val selMonth = handle.get<Int>(KEY_DASHBOARD_SEL_MONTH)
+                val current = if (curYear != null && curMonth != null) JalaliMonth(curYear, curMonth) else null
+                val selected = if (selYear != null && selMonth != null) JalaliMonth(selYear, selMonth) else current
+                MonthlyDashboardState(currentMonth = current, selectedMonth = selected)
+            } else null
+
+            return LedgerUiState(vehicle = vehicle, draft = draft, dashboard = dashboard)
         }
     }
 }

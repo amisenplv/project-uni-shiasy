@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -224,6 +225,7 @@ class LedgerEntryUiTest {
         openNew()
         compose.onNodeWithText(vehicle.displayLabel).assertIsDisplayed()
         field("Date").assertTextContains("۱۴۰۵/۰۱/۰۱")
+        compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
         field("Mileage").performScrollTo().assertTextContains("")
         compose.onNodeWithText("آخرین کارکرد ثبت‌شده", substring = true).assertExists()
         enterFuel()
@@ -250,6 +252,7 @@ class LedgerEntryUiTest {
         openNew()
         replace("Amount", "۱۲٫۰۰")
         replace("Date", "۱۴۰۴/۱۲/۳۰")
+        compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
         replace("Notes", "پیش‌نویس LX")
         field("Notes").performScrollTo().performTouchInput { click() }
         compose.waitUntil(5_000) { imeVisible() }
@@ -498,6 +501,7 @@ class LedgerEntryUiTest {
         compose.onNodeWithText(context.getString(R.string.ledger_add)).performClick()
         replace("Amount", "١٢٬۰۰۰٫۱")
         replace("Volume", "۳٢٫۴۵۰")
+        compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
         replace("Mileage", "۱۲۰۰")
         compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
         await(R.string.ledger_saved)
@@ -702,6 +706,9 @@ class LedgerEntryUiTest {
     private fun enterFuel() {
         replace("Amount", "١٢٬۰۰۰٫۱")
         replace("Volume", "۳٢٫۴۵۰")
+        if (compose.onAllNodesWithTag("ledgerMileage").fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
+        }
         replace("Mileage", "۱٢0۰")
     }
 

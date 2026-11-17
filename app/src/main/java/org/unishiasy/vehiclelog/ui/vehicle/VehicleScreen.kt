@@ -9,13 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -86,24 +87,27 @@ internal fun VehicleScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val draft = state.draft
     val semanticColors = LocalVehicleLogSemanticColors.current
-    BackHandler(enabled = draft != null, onBack = viewModel::cancel)
+    BackHandler(enabled = draft != null || state.managingList) {
+        if (draft != null) viewModel.cancel() else viewModel.closeManagement()
+    }
 
-    Surface(
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { paddingValues ->
         key(draft != null) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .safeDrawingPadding()
+                    .padding(paddingValues)
+                    .consumeWindowInsets(paddingValues)
                     .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 if (draft == null) {
-                    // Top App Bar for First Launch / Empty State
+                    // Top App Bar for First Launch / Empty State / Manage Vehicles
                     Row(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -113,22 +117,36 @@ internal fun VehicleScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(semanticColors.wash),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_book),
-                                    contentDescription = null,
-                                    tint = semanticColors.action,
-                                    modifier = Modifier.size(20.dp),
-                                )
+                            if (state.managingList) {
+                                IconButton(
+                                    onClick = viewModel::closeManagement,
+                                    modifier = Modifier.size(48.dp).testTag("vehicleManageBack"),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_arrow_back),
+                                        contentDescription = stringResource(R.string.vehicle_cancel),
+                                        tint = MaterialTheme.colorScheme.onBackground,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(semanticColors.wash),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_book),
+                                        contentDescription = null,
+                                        tint = semanticColors.action,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
                             }
                             Text(
-                                stringResource(R.string.app_name),
+                                stringResource(if (state.managingList) R.string.vehicle_list_title else R.string.app_name),
                                 modifier = Modifier.semantics { heading() },
                                 style = MaterialTheme.typography.headlineLarge,
                                 color = MaterialTheme.colorScheme.onBackground,
@@ -333,7 +351,7 @@ private fun VehicleList(
             }
         }
         else -> {
-            SectionHeading(R.string.vehicle_list_title)
+            if (!state.managingList) SectionHeading(R.string.vehicle_list_title)
             for (vehicle in vehicles) {
                 OutlinedButton(
                     onClick = { viewModel.editVehicle(vehicle) },
@@ -379,7 +397,7 @@ private fun VehicleList(
             }
             Button(
                 onClick = viewModel::addVehicle,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("vehicleAddButton"),
                 shape = MaterialTheme.shapes.medium,
             ) {
                 Text(stringResource(R.string.vehicle_add))

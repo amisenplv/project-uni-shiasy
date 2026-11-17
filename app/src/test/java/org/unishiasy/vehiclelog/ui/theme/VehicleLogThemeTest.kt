@@ -2,10 +2,12 @@ package org.unishiasy.vehiclelog.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VehicleLogThemeTest {
@@ -43,5 +45,21 @@ class VehicleLogThemeTest {
         assertEquals(0.sp, VehicleLogTypography.headlineMedium.letterSpacing)
         assertEquals(0.sp, VehicleLogTypography.bodyLarge.letterSpacing)
         assertEquals("fa", VehicleLogTypography.bodyLarge.localeList?.get(0)?.language)
+    }
+
+    @Test
+    fun warningTokensMeetWcagAaContrastInLightAndDarkThemes() {
+        assertTrue(contrastRatio(VehicleLogLightSemanticColors.onWarningEdge, VehicleLogLightSemanticColors.warningEdge) >= 4.5)
+        assertTrue(contrastRatio(VehicleLogDarkSemanticColors.onWarningEdge, VehicleLogDarkSemanticColors.warningEdge) >= 4.5)
+        assertTrue(contrastRatio(VehicleLogLightSemanticColors.onWarning, VehicleLogLightSemanticColors.warningSurface) >= 4.5)
+        assertTrue(contrastRatio(VehicleLogDarkSemanticColors.onWarning, VehicleLogDarkSemanticColors.warningSurface) >= 4.5)
+    }
+
+    private fun contrastRatio(foreground: Color, background: Color): Double {
+        val l1 = foreground.luminance().toDouble()
+        val l2 = background.luminance().toDouble()
+        val lighter = maxOf(l1, l2)
+        val darker = minOf(l1, l2)
+        return (lighter + 0.05) / (darker + 0.05)
     }
 }

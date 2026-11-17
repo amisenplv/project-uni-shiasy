@@ -347,6 +347,7 @@ class HomeScreenTest {
         awaitReminder(R.string.reminder_completed)
         compose.onNodeWithText(context.getString(R.string.reminder_status_completed)).assertExists()
         clickReminder("reminderCancel:${mileage.id}")
+        compose.onNodeWithTag("reminderConfirmCancel").performClick()
         awaitReminder(R.string.reminder_canceled)
         compose.onNodeWithText(context.getString(R.string.reminder_status_canceled)).assertExists()
         clickReminder("remindersBack")

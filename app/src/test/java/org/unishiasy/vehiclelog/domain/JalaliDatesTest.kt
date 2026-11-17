@@ -105,6 +105,23 @@ class JalaliDatesTest {
         )
     }
 
+    @Test
+    fun exposesLeapAwareMonthLengthSaturdayFirstWeekdaysAndMonthAddition() {
+        assertEquals(30, JalaliDates.monthLength(1403, 12))
+        assertEquals(29, JalaliDates.monthLength(1404, 12))
+        assertEquals(31, JalaliDates.monthLength(1405, 1))
+        assertEquals(0, JalaliDates.monthLength(1405, 13))
+
+        // 1405/01/01 == 2026-03-21 == Saturday (0 = شنبه)
+        assertEquals(0, JalaliDates.dayOfWeekOfFirst(1405, 1))
+        // 1403/12/30 (2025-03-20) + 12 months clamps to 1404/12/29 (2026-03-20)
+        assertEquals("2026-03-20", JalaliDates.addMonths("2025-03-20", 12))
+        // 1405/01/31 (2026-04-20) + 6 months clamps to 1405/07/30 (2026-10-22)
+        assertEquals("2026-10-22", JalaliDates.addMonths("2026-04-20", 6))
+        // Out of range returns null
+        assertNull(JalaliDates.addMonths("2120-03-20", 1))
+    }
+
     private class MutableClock(var now: Instant, var zoneId: ZoneId) : Clock() {
         var instantReads = 0
             private set

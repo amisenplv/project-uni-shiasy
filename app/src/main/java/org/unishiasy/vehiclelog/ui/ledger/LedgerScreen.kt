@@ -8,7 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,6 +42,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,12 +50,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,11 +63,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -78,6 +82,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
@@ -88,6 +93,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.EntrySaveResult
+import org.unishiasy.vehiclelog.data.VehicleSaveResult
 import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
@@ -95,7 +101,9 @@ import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
 import org.unishiasy.vehiclelog.ui.components.AppBottomDock
 import org.unishiasy.vehiclelog.ui.components.EntrySelectorSheet
+import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.components.MainTab
+import org.unishiasy.vehiclelog.ui.components.TomanVisualTransformation
 import org.unishiasy.vehiclelog.ui.home.HomeScreen
 import org.unishiasy.vehiclelog.ui.home.HomeViewModel
 import org.unishiasy.vehiclelog.ui.reminders.RemindersScreen
@@ -169,8 +177,24 @@ internal fun LedgerHost(
         else -> MainTab.HOME
     }
 
+    val vehicleSaved = !vehicleState.managingList &&
+        vehicleState.draft == null &&
+        (vehicleState.saveResult is VehicleSaveResult.Created || vehicleState.saveResult is VehicleSaveResult.Updated)
+
+    LaunchedEffect(vehicleState.saveResult) {
+        val result = vehicleState.saveResult
+        if (result is VehicleSaveResult.Created) {
+            home?.selectVehicle(result.id)
+        }
+    }
+
+    val showHome = home != null &&
+        vehicleState.draft == null &&
+        !vehicleState.managingList &&
+        vehicleState.vehicles?.isNotEmpty() == true
+
     val dockComposable: @Composable () -> Unit = {
-        if (home != null && vehicleState.draft == null && vehicleState.vehicles?.isNotEmpty() == true) {
+        if (showHome) {
             AppBottomDock(
                 activeTab = activeTab,
                 onSelectTab = { tab ->
@@ -237,7 +261,7 @@ internal fun LedgerHost(
         return
     }
 
-    if (home != null && vehicleState.draft == null && vehicleState.vehicles?.isNotEmpty() == true) {
+    if (showHome) {
         val observedVehicleId = reminderVehicle?.id ?: homeState?.selectedVehicle?.id
         if (reminders != null && observedVehicleId != null) {
             val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -273,6 +297,10 @@ internal fun LedgerHost(
             onRetryReminders = reminders?.let { it::retry },
             onOpenSettings = backupSettings?.let { it::open },
             onOpenGeneralExpense = { selected -> ledger.openQuickAdd(selected, EntryCategory.Other) },
+            onManageVehicles = vehicles::openManagement,
+            onOpenEntry = ledger::openEntryFromHome,
+            showVehicleSavedBanner = vehicleSaved,
+            onDismissVehicleSaved = vehicles::clearSaveResult,
             bottomBar = dockComposable,
         )
     } else {
@@ -336,13 +364,14 @@ private fun HistoryView(
             }
 
             // Notebook Segmented Tabs (History & Report)
-            TabRow(
+            PrimaryTabRow(
                 selectedTabIndex = 0,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[0]),
+                indicator = {
+                    TabRowDefaults.PrimaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(0, matchContentSize = false),
+                        width = androidx.compose.ui.unit.Dp.Unspecified,
                         height = 3.dp,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -662,7 +691,7 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
                     TextButton(
                         onClick = { ledger.requestDelete(entry.id) },
                         modifier = Modifier
-                            .heightIn(min = 36.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("ledgerDelete:${entry.id}"),
                         enabled = !state.openingEntry && !state.deleting,
                     ) {
@@ -691,14 +720,15 @@ private fun EntryFormScreen(
         else -> R.string.ledger_add
     }
 
-    Surface(
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .safeDrawingPadding()
+                .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
@@ -740,11 +770,39 @@ private fun EntryFormScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerViewModel) {
     val enabled = !state.saving
     val focusManager = LocalFocusManager.current
-    var detailsExpanded by rememberSaveable { mutableStateOf(true) }
+    val fontScale = LocalDensity.current.fontScale
+    val amountVisualTransformation = remember { TomanVisualTransformation() }
+    var showDatePicker by rememberSaveable(draft.id) { mutableStateOf(false) }
+
+    val hasOptionalData = draft.editing && (!draft.mileage.isBlank() || !draft.notes.isBlank() || draft.omitMileage)
+    val hasDetailsError = state.fieldErrors.containsKey(EntryField.Mileage) ||
+        state.fieldErrors.containsKey(EntryField.Notes) ||
+        state.result == EntrySaveResult.MileageConflict
+    var detailsExpanded by rememberSaveable(draft.id) { mutableStateOf(hasOptionalData || hasDetailsError) }
+    LaunchedEffect(hasDetailsError) {
+        if (hasDetailsError) detailsExpanded = true
+    }
+
+    val todayLocalDate = ledger.todayDate()
+    val todayJalali = JalaliDates.formatJalaliInput(todayLocalDate.toString())
+    val yesterdayJalali = JalaliDates.formatJalaliInput(todayLocalDate.minusDays(1).toString())
+
+    if (showDatePicker) {
+        JalaliDatePickerDialog(
+            initialDateText = draft.date,
+            todayDate = todayLocalDate,
+            onSelectDate = { selected ->
+                ledger.changeField(EntryField.Date, selected)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false },
+        )
+    }
 
     // If general expense mode, show category selection first
     if (draft.category != EntryCategory.Fuel || draft.editing) {
@@ -753,24 +811,46 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
 
     // Amount & Volume Inputs
     if (draft.category == EntryCategory.Fuel) {
-        // Paired row for Amount & Fuel Volume at normal scale
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(Modifier.weight(1f)) {
-                EntryTextField(
-                    draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
-                    keyboard = KeyboardType.Decimal,
-                    imeAction = ImeAction.Next,
-                )
-            }
-            Box(Modifier.weight(1f)) {
-                EntryTextField(
-                    draft.volume, EntryField.Volume, R.string.ledger_volume, state, ledger,
-                    keyboard = KeyboardType.Decimal,
-                    imeAction = ImeAction.Next,
-                )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val stackInputs = fontScale >= 1.35f || maxWidth < 360.dp
+            if (stackInputs) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    EntryTextField(
+                        draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
+                        keyboard = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next,
+                        visualTransformation = amountVisualTransformation,
+                    )
+                    EntryTextField(
+                        draft.volume, EntryField.Volume, R.string.ledger_volume, state, ledger,
+                        keyboard = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next,
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        EntryTextField(
+                            draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
+                            keyboard = KeyboardType.Decimal,
+                            imeAction = ImeAction.Next,
+                            visualTransformation = amountVisualTransformation,
+                        )
+                    }
+                    Box(Modifier.weight(1f)) {
+                        EntryTextField(
+                            draft.volume, EntryField.Volume, R.string.ledger_volume, state, ledger,
+                            keyboard = KeyboardType.Decimal,
+                            imeAction = ImeAction.Next,
+                        )
+                    }
+                }
             }
         }
     } else {
@@ -778,6 +858,7 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
             draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
             keyboard = KeyboardType.Decimal,
             imeAction = ImeAction.Next,
+            visualTransformation = amountVisualTransformation,
         )
     }
 
@@ -790,13 +871,56 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
         )
     }
 
-    // Date Field
-    EntryTextField(
-        draft.date, EntryField.Date, R.string.ledger_date, state, ledger,
-        numeric = true,
-        hint = if (draft.originalGregorianDate == null) R.string.ledger_date_example else R.string.ledger_replace_date,
-        imeAction = ImeAction.Next,
-    )
+    // Date Field with Calendar Trigger & Quick Today/Yesterday Chips
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        EntryTextField(
+            draft.date, EntryField.Date, R.string.ledger_date, state, ledger,
+            numeric = true,
+            hint = if (draft.originalGregorianDate == null) R.string.ledger_date_example else R.string.ledger_replace_date,
+            imeAction = ImeAction.Next,
+            trailingIcon = {
+                IconButton(
+                    onClick = { showDatePicker = true },
+                    enabled = enabled,
+                    modifier = Modifier.size(48.dp).testTag("ledgerDatePickerOpen"),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_calendar),
+                        contentDescription = stringResource(R.string.date_picker_open),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            },
+        )
+        if (todayJalali != null || yesterdayJalali != null) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (todayJalali != null) {
+                    FilterChip(
+                        selected = draft.date.trim() == todayJalali,
+                        onClick = { ledger.changeField(EntryField.Date, todayJalali) },
+                        enabled = enabled,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("ledgerDateToday"),
+                        shape = VehicleLogShapes.medium,
+                        label = { Text(stringResource(R.string.date_chip_today)) },
+                    )
+                }
+                if (yesterdayJalali != null) {
+                    FilterChip(
+                        selected = draft.date.trim() == yesterdayJalali,
+                        onClick = { ledger.changeField(EntryField.Date, yesterdayJalali) },
+                        enabled = enabled,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("ledgerDateYesterday"),
+                        shape = VehicleLogShapes.medium,
+                        label = { Text(stringResource(R.string.date_chip_yesterday)) },
+                    )
+                }
+            }
+        }
+    }
 
     // Accordion Disclosure: Mileage & Notes (Optional)
     OutlinedCard(
@@ -809,7 +933,9 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { detailsExpanded = !detailsExpanded },
+                    .heightIn(min = 48.dp)
+                    .clickable { detailsExpanded = !detailsExpanded }
+                    .testTag("ledgerDetailsToggle"),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -847,7 +973,7 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
                         if (draft.omitMileage) Text(stringResource(R.string.ledger_omit_mileage_hint))
                         OutlinedButton(
                             onClick = ledger::toggleMileageRemoval,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             enabled = enabled,
                             shape = VehicleLogShapes.small,
                         ) {
@@ -990,6 +1116,8 @@ private fun EntryTextField(
     @StringRes hint: Int? = null,
     imeAction: ImeAction = ImeAction.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailingIcon: (@Composable () -> Unit)? = null,
 ) {
     val error = state.fieldErrors[field]
     val supportingText = error ?: hint
@@ -1009,6 +1137,8 @@ private fun EntryTextField(
         ),
         keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = imeAction),
         keyboardActions = keyboardActions,
+        visualTransformation = visualTransformation,
+        trailingIcon = trailingIcon,
     )
 }
 

@@ -1,6 +1,7 @@
 package org.unishiasy.vehiclelog.reminders
 
 import android.content.Context
+import androidx.core.content.edit
 import java.io.File
 import java.io.IOException
 import java.time.Clock
@@ -33,12 +34,13 @@ internal class ReminderNotifications(
 
     fun systemAllowsNotifications(): Boolean = channels.available()
 
+    @Suppress("UseKtx") // commit() Boolean return value is required to roll back failed writes.
     suspend fun setOptedIn(enabled: Boolean): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             val previous = optedIn()
             if (!preferences.edit().putBoolean("enabled", enabled).commit()) {
                 // SharedPreferences updates its in-memory value even when persistence fails.
-                preferences.edit().putBoolean("enabled", previous).apply()
+                preferences.edit { putBoolean("enabled", previous) }
                 return@withLock false
             }
             if (!enabled) channels.activeReminderIds().forEach(channels::cancel)

@@ -11,7 +11,7 @@ android {
     buildToolsVersion = "36.0.0"
 
     defaultConfig {
-        applicationId = "org.amirariana.vehiclelog"
+        applicationId = "org.mewlog.vehiclelog"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -50,6 +50,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -95,6 +99,11 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.test.junit4)
+    testImplementation(libs.androidx.test.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.test.junit4)

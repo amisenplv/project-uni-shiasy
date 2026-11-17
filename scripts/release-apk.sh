@@ -89,7 +89,7 @@ export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$project_root/.gradle/local-user-home}"
 export JAVA_HOME ANDROID_HOME
 
-application_id=org.amirariana.vehiclelog
+application_id=org.mewlog.vehiclelog
 output_root="$project_root/build/releases"
 destination="$output_root/$version_code"
 mkdir -p -- "$output_root"

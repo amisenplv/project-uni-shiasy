@@ -47,7 +47,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.selected
@@ -142,10 +142,11 @@ fun AppBottomDock(
             }
 
             // 3-Destination Navigation Row
+            val navLabel = stringResource(R.string.dock_nav_label)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .semantics { heading() },
+                    .semantics { contentDescription = navLabel },
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -475,7 +476,7 @@ fun EntrySelectorSheet(
                 )
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
@@ -620,7 +621,7 @@ fun VehicleSwitcherSheet(
                 )
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">دفتر خودرو</string>
-    <string name="home_description">مدیریت هزینه‌ها و سرویس‌های خودرو</string>
     <string name="vehicle_list_title">خودروهای ثبت‌شده</string>
     <string name="vehicle_loading">در حال بارگذاری خودروها…</string>
     <string name="vehicle_empty">هنوز خودرویی ثبت نکرده‌اید.</string>
@@ -91,7 +90,6 @@
     <string name="dashboard_back">بازگشت به هزینه‌ها و سرویس‌ها</string>
     <string name="dashboard_loading">در حال بارگذاری گزارش…</string>
     <string name="dashboard_failed">گزارش بارگذاری نشد. دوباره تلاش کنید.</string>
-    <string name="dashboard_month_label">ماه گزارش</string>
     <string name="dashboard_choose_month">ماه را انتخاب کنید</string>
     <string name="dashboard_current_unsupported">تاریخ امروز خارج از بازهٔ پشتیبانی‌شدهٔ تقویم شمسی است.</string>
     <string name="dashboard_total_label">جمع هزینه‌ها</string>
@@ -113,8 +111,6 @@
     <string name="reminders_loading">در حال بارگیری یادآورها…</string>
     <string name="reminders_empty">هنوز برای این خودرو یادآوری ثبت نکرده‌اید.</string>
     <string name="reminders_load_failed">یادآورها بارگیری نشدند.</string>
-    <string name="reminders_home_due">یادآورهای سررسیدشده</string>
-    <string name="reminders_home_empty">یادآور سررسیدشده‌ای ندارید.</string>
     <string name="reminder_title_label">عنوان یادآور</string>
     <string name="reminder_title_required">عنوان یادآور را وارد کنید.</string>
     <string name="reminder_threshold_type">نوع یادآور</string>
@@ -142,6 +138,9 @@
     <string name="reminder_status_canceled">لغوشده</string>
     <string name="reminder_complete_action">ثبت به‌عنوان انجام‌شده</string>
     <string name="reminder_cancel_action">لغو یادآور</string>
+    <string name="reminder_cancel_confirm_title">لغو یادآور</string>
+    <string name="reminder_cancel_confirm_body">آیا از لغو یادآور «%1$s» مطمئن هستید؟ این یادآور دیگر فعال نخواهد بود.</string>
+    <string name="reminder_cancel_confirm_action">بله، لغو شود</string>
     <string name="reminder_notification_channel">اعلان یادآورهای تاریخ‌دار</string>
     <string name="reminder_notification_channel_description">اعلان یادآورهایی که تاریخ سررسیدشان رسیده است.</string>
     <string name="reminder_notification_due">موعد یادآور رسیده است</string>
@@ -189,12 +188,7 @@
     <string name="notebook_history_tab">سوابق هزینه‌ها</string>
     <string name="notebook_report_tab">گزارش ماهانه</string>
     <string name="reminders_status_due_badge">سررسیدشده</string>
-    <string name="reminders_status_pending_badge">در انتظار موعد</string>
-    <string name="reminders_status_history">سوابق یادآورها</string>
-    <string name="reminders_new_action">ثبت یادآور +</string>
     <string name="reminders_remaining_km">%1$s کیلومتر باقی‌مانده</string>
-    <string name="reminders_remaining_days">%1$s روز باقی‌مانده</string>
-    <string name="reminders_overdue_days">%1$s روز گذشته</string>
     <string name="entry_mileage_and_notes">کارکرد و یادداشت (اختیاری)</string>
     <string name="delete_confirm_sheet_title">این ثبت حذف شود؟</string>
     <string name="delete_confirm_sheet_action">حذف ثبت</string>
@@ -215,4 +209,16 @@
     <string name="manage_vehicles">مدیریت خودروها</string>
     <string name="ledger_unpriced">مبلغ ثبت نشده</string>
     <string name="vehicle_model_year">مدل %1$s</string>
+    <string name="date_chip_today">امروز</string>
+    <string name="date_chip_yesterday">دیروز</string>
+    <string name="date_chip_plus_1m">+۱ ماه</string>
+    <string name="date_chip_plus_3m">+۳ ماه</string>
+    <string name="date_chip_plus_6m">+۶ ماه</string>
+    <string name="date_picker_open">انتخاب از تقویم</string>
+    <string name="date_picker_title">انتخاب تاریخ شمسی</string>
+    <string name="date_picker_prev_month">ماه قبل</string>
+    <string name="date_picker_next_month">ماه بعد</string>
+    <string name="date_picker_prev_year">سال قبل</string>
+    <string name="date_picker_next_year">سال بعد</string>
+    <string name="date_picker_close">بستن</string>
 </resources>

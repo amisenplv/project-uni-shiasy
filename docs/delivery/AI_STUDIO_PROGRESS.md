@@ -55,10 +55,11 @@
 
 ---
 
-## 5. Next Recommended Slice & Pending Decisions
+## 5. Active Execution & Approved Decisions
 
-- **Next Recommended Slice:** **P0.1 — Lint Zero-Error Baseline & Resource/KTX Hygiene** (`CloudSettingsScreen.kt` `LocalActivity.current`, `SharedPreferences.edit` KTX, unused strings audit).
-- **Awaiting Product Owner Approval:**
-  1. **Gate G0:** Approve starting **P0.1** (and continuing sequentially through **P0.4**).
-  2. **Gate G1 (for P1.1):** Approve adding `robolectric` + `ui-test-junit4` (`testImplementation` only) so Compose UI, Room migrations, and WorkManager tests execute inside AI Studio.
-  3. **Gate G2 (for P1.7):** Confirm `applicationId = org.amirariana.vehiclelog` for Cafe Bazaar and approve enabling R8 (`isMinifyEnabled = true`, `isShrinkResources = true`) on `release`.
+- **Approved Decisions (2026-11-17):**
+  - **Gate G0 Approved:** Implementing **P0.1 → P0.4**.
+  - **Gate G1 Approved:** Approved adding `robolectric` & `ui-test-junit4` (`testImplementation` only) in **P1.1**.
+  - **Application ID Finalized:** Updated `defaultConfig.applicationId` & `scripts/release-apk.sh` from `org.amirariana.vehiclelog` to **`org.mewlog.vehiclelog`**.
+- **In Progress:** **Slice P0.1** (Lint zero-error baseline) + **Slice P0.2** (Contrast, 48dp touch targets, `PrimaryTabRow`), followed immediately by **P0.3** and **P0.4**.
+- **Remaining Pending Decisions:** Confirm enabling release R8 minification (`isMinifyEnabled = true`, **P1.7**) and whether debug-only `cloud/` stays gated out of release builds.

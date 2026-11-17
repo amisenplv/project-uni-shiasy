@@ -4,7 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
@@ -43,12 +47,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -72,6 +81,7 @@ import org.unishiasy.vehiclelog.data.local.ReminderEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
 
@@ -89,11 +99,60 @@ internal fun RemindersScreen(
     val dueIds = list?.due.orEmpty().mapTo(hashSetOf()) { it.id }
     val listState = rememberLazyListState()
     val titleFocusRequester = remember { FocusRequester() }
+    var pendingCancelId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(newReminderRequestCount) {
         if (newReminderRequestCount > 0) {
             listState.animateScrollToItem(2)
             titleFocusRequester.requestFocus()
+        }
+    }
+
+    pendingCancelId?.let { cancelId ->
+        val cancelTarget = list?.rows?.firstOrNull { it.id == cancelId }
+        if (cancelTarget != null) {
+            AlertDialog(
+                onDismissRequest = { if (!state.writing) pendingCancelId = null },
+                title = {
+                    Text(
+                        stringResource(R.string.reminder_cancel_confirm_title),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    )
+                },
+                text = {
+                    Text(
+                        stringResource(R.string.reminder_cancel_confirm_body, "\u2068${cancelTarget.title}\u2069"),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.finish(UUID.fromString(cancelId), complete = false)
+                            pendingCancelId = null
+                        },
+                        enabled = !state.writing,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("reminderConfirmCancel"),
+                        shape = VehicleLogShapes.medium,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.reminder_cancel_confirm_action))
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { pendingCancelId = null },
+                        enabled = !state.writing,
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("reminderDismissCancel"),
+                        shape = VehicleLogShapes.medium,
+                    ) {
+                        Text(stringResource(R.string.vehicle_cancel))
+                    }
+                },
+            )
         }
     }
 
@@ -161,7 +220,13 @@ internal fun RemindersScreen(
 
             // New Reminder Form
             item {
-                ReminderForm(state, viewModel, titleFocusRequester)
+                ReminderForm(
+                    state = state,
+                    viewModel = viewModel,
+                    currentMileage = list?.mileage,
+                    mileageKnownMissing = list != null && list.mileage == null,
+                    titleFocusRequester = titleFocusRequester,
+                )
             }
 
             // Reminders list status
@@ -183,7 +248,7 @@ internal fun RemindersScreen(
                                 )
                                 OutlinedButton(
                                     onClick = viewModel::retry,
-                                    modifier = Modifier.heightIn(min = 44.dp),
+                                    modifier = Modifier.heightIn(min = 48.dp),
                                     shape = VehicleLogShapes.medium,
                                 ) {
                                     Text(stringResource(R.string.vehicle_retry))
@@ -234,6 +299,7 @@ internal fun RemindersScreen(
                         currentMileage = list.mileage,
                         state = state,
                         viewModel = viewModel,
+                        onRequestCancel = { pendingCancelId = reminder.id },
                     )
                 }
             }
@@ -241,10 +307,13 @@ internal fun RemindersScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReminderForm(
     state: RemindersUiState,
     viewModel: RemindersViewModel,
+    currentMileage: Long? = null,
+    mileageKnownMissing: Boolean = false,
     titleFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
@@ -258,6 +327,21 @@ private fun ReminderForm(
     }
     val enabled = !state.writing
     val focusManager = LocalFocusManager.current
+    val fontScale = LocalDensity.current.fontScale
+    var showDatePicker by rememberSaveable(draft.id) { mutableStateOf(false) }
+    val todayLocalDate = viewModel.todayDate()
+
+    if (showDatePicker && dateBased) {
+        JalaliDatePickerDialog(
+            initialDateText = draft.date,
+            todayDate = todayLocalDate,
+            onSelectDate = { selected ->
+                viewModel.edit { it.copy(date = selected) }
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false },
+        )
+    }
 
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -299,37 +383,76 @@ private fun ReminderForm(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for (type in ReminderThreshold.entries) {
-                    val isDate = type == ReminderThreshold.Date
-                    val isSelected = draft.threshold == type
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.edit { it.copy(threshold = type) } },
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 44.dp)
-                            .testTag(if (isDate) "reminderDateType" else "reminderMileageType"),
-                        enabled = enabled,
-                        shape = VehicleLogShapes.medium,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                        label = {
-                            Text(
-                                text = stringResource(if (isDate) R.string.reminder_date_type else R.string.reminder_mileage_type),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val stackChips = fontScale >= 1.35f || maxWidth < 360.dp
+                if (stackChips) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        for (type in ReminderThreshold.entries) {
+                            val isDate = type == ReminderThreshold.Date
+                            val isSelected = draft.threshold == type
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.edit { it.copy(threshold = type) } },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .testTag(if (isDate) "reminderDateType" else "reminderMileageType"),
+                                enabled = enabled,
+                                shape = VehicleLogShapes.medium,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                 ),
+                                label = {
+                                    Text(
+                                        text = stringResource(if (isDate) R.string.reminder_date_type else R.string.reminder_mileage_type),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        ),
+                                    )
+                                },
                             )
-                        },
-                    )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        for (type in ReminderThreshold.entries) {
+                            val isDate = type == ReminderThreshold.Date
+                            val isSelected = draft.threshold == type
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.edit { it.copy(threshold = type) } },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
+                                    .testTag(if (isDate) "reminderDateType" else "reminderMileageType"),
+                                enabled = enabled,
+                                shape = VehicleLogShapes.medium,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                ),
+                                label = {
+                                    Text(
+                                        text = stringResource(if (isDate) R.string.reminder_date_type else R.string.reminder_mileage_type),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        ),
+                                    )
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -350,6 +473,21 @@ private fun ReminderForm(
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 enabled = enabled,
                 isError = thresholdError,
+                trailingIcon = if (dateBased) {
+                    {
+                        IconButton(
+                            onClick = { showDatePicker = true },
+                            enabled = enabled,
+                            modifier = Modifier.size(48.dp).testTag("reminderDatePickerOpen"),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_calendar),
+                                contentDescription = stringResource(R.string.date_picker_open),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                } else null,
                 supportingText = {
                     Text(
                         stringResource(
@@ -364,12 +502,52 @@ private fun ReminderForm(
                 },
             )
 
-            if (!dateBased) {
-                Text(
-                    text = stringResource(R.string.reminder_missing_mileage),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (dateBased) {
+                val baseDateStr = todayLocalDate.toString()
+                val presets = listOf(
+                    Triple(1, R.string.date_chip_plus_1m, "reminderQuick1m"),
+                    Triple(3, R.string.date_chip_plus_3m, "reminderQuick3m"),
+                    Triple(6, R.string.date_chip_plus_6m, "reminderQuick6m"),
                 )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    for ((months, labelRes, tag) in presets) {
+                        val targetGregorian = JalaliDates.addMonths(baseDateStr, months)
+                        val targetJalali = targetGregorian?.let(JalaliDates::formatJalaliInput)
+                        if (targetJalali != null) {
+                            FilterChip(
+                                selected = draft.date.trim() == targetJalali,
+                                onClick = { viewModel.edit { it.copy(date = targetJalali) } },
+                                enabled = enabled,
+                                modifier = Modifier.heightIn(min = 48.dp).testTag(tag),
+                                shape = VehicleLogShapes.medium,
+                                label = { Text(stringResource(labelRes)) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!dateBased) {
+                if (mileageKnownMissing) {
+                    Text(
+                        text = stringResource(R.string.reminder_missing_mileage),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (currentMileage != null) {
+                    Text(
+                        text = stringResource(
+                            R.string.ledger_mileage_reference,
+                            "\u2066${currentMileage.toString().withPersianDigits()}\u2069",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             Button(
@@ -443,6 +621,7 @@ private fun ReminderCard(
     currentMileage: Long?,
     state: RemindersUiState,
     viewModel: RemindersViewModel,
+    onRequestCancel: () -> Unit,
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
     val active = reminder.state == ReminderState.Active.key
@@ -597,7 +776,7 @@ private fun ReminderCard(
                             onClick = { viewModel.finish(UUID.fromString(reminder.id), complete = true) },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 40.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("reminderComplete:${reminder.id}")
                                 .semantics { contentDescription = completeDescription },
                             shape = VehicleLogShapes.medium,
@@ -616,10 +795,10 @@ private fun ReminderCard(
                             )
                         }
                         OutlinedButton(
-                            onClick = { viewModel.finish(UUID.fromString(reminder.id), complete = false) },
+                            onClick = onRequestCancel,
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 40.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("reminderCancel:${reminder.id}")
                                 .semantics { contentDescription = cancelDescription },
                             shape = VehicleLogShapes.medium,

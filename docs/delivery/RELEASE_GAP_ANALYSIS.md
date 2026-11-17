@@ -2,7 +2,7 @@
 
 **Assessment Date:** 2026-11-17
 **Target Store:** Cafe Bazaar (Iran)
-**Current App Baseline:** `applicationId = org.amirariana.vehiclelog`, `versionCode = 1`, `versionName = "0.1.0"`, `minSdk = 26`, `targetSdk = 36`
+**Current App Baseline:** `applicationId = org.mewlog.vehiclelog`, `versionCode = 1`, `versionName = "0.1.0"`, `minSdk = 26`, `targetSdk = 36`
 
 > **Verification Discipline:** Repository facts below are directly verified against Gradle, Manifest, Kotlin source, and build/lint runs. External Cafe Bazaar console rules that cannot be queried from this offline build environment are explicitly tagged `[Pending verification — live Cafe Bazaar developer console check required]`.
 
@@ -18,7 +18,7 @@ The offline-first Room v4 ledger core, Jalali date engine, exact rial/Toman arit
 
 | # | Area | Current Verified State | Severity | Required Action Before Release |
 | :--- | :--- | :--- | :--- | :--- |
-| **1** | **Package Name (`applicationId`) Consistency** | `app/build.gradle.kts`: `applicationId = "org.amirariana.vehiclelog"`, Kotlin `namespace = "org.unishiasy.vehiclelog"`. `scripts/release-apk.sh` hardcodes `org.amirariana.vehiclelog`. | **Medium (Decision Gate)** | **Must stay frozen once published on Cafe Bazaar.** Product owner must confirm keeping `org.amirariana.vehiclelog` before first store upload; never change `applicationId` post-publication. |
+| **1** | **Package Name (`applicationId`) Consistency** | `app/build.gradle.kts` & `scripts/release-apk.sh` updated to **`org.mewlog.vehiclelog`** per owner decision (`namespace = "org.unishiasy.vehiclelog"`). | **Resolved (Frozen)** | Keep `org.mewlog.vehiclelog` permanently locked prior to and after Cafe Bazaar publication. |
 | **2** | **Versioning & Changelog** | `versionCode = 1`, `versionName = "0.1.0"`. | **Low** | Bump to `versionCode >= 2` / `versionName = "1.0.0"` for public v1.0 release after passing all P0/P1/P3 gates. |
 | **3** | **Android Lint Baseline (`:app:lintDebug`)** | **FAILING** (`CloudSettingsScreen.kt:68` `ContextCastToActivity` error + 3 `UseKtx` + 10 `UnusedResources` + 10 outdated dependency warnings). | **P0 Blocker** | Fix `LocalActivity.current` error, KTX calls, and unused string audit in **Slice P0.1** so `:app:lintDebug` passes with 0 errors. |
 | **4** | **R8 / ProGuard Minification & Shrinking** | `release` buildType sets `isMinifyEnabled = false`; no `proguard-rules.pro` exists (`app/build.gradle.kts:31-37`). | **P1 High** | Enable `isMinifyEnabled = true` + `isShrinkResources = true` with verified ProGuard/R8 rules (`kotlinx.serialization`, Room, WorkManager) in **Slice P1.7**; reduces APK size and prevents trivial decompilation. |
