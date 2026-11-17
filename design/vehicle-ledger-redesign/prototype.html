@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>دفتر خودرو | پیش‌نمایش طراحی</title>
+<link rel="stylesheet" href="prototype.css">
+<script src="prototype.js" defer></script>
+</head>
+<body>
+<div class="workbench">
+  <aside class="review" aria-label="فهرست نماهای طرح">
+    <p class="review-tag">پیشنهاد طراحی</p>
+    <h2>دفتر خودرو</h2>
+    <p>نماهای نمونه با اطلاعات آزمایشی. دکمه‌های ثبت و بازیابی فقط پیش‌نمایش وضعیت بعدی را نمایش می‌دهند.</p>
+    <div id="preview-appearance"></div>
+    <nav id="scenarios" aria-label="نماهای نمونه"></nav>
+  </aside>
+  <div id="phone" class="phone">
+    <div class="status" aria-hidden="true"><span>۹:۴۱</span><span class="signals"><span class="reception"></span><span class="battery"></span></span></div>
+    <div class="app" id="app"></div>
+    <div class="gesture" aria-hidden="true"><span></span></div>
+    <dialog id="overlay" aria-labelledby="overlay-title"></dialog>
+  </div>
+</div>
+</body>
+</html>
