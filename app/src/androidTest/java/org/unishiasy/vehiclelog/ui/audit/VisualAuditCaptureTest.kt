@@ -269,7 +269,7 @@ class VisualAuditCaptureTest {
 
         // 3. Quick Add with validation errors
         compose.onNodeWithTag("ledgerAmount").performTextReplacement("invalid")
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").performClick()
         capture("06_quick_add_validation_error")
 
         // Cancel back to history

@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -49,6 +50,7 @@ import org.unishiasy.vehiclelog.data.VehicleRepository
 import org.unishiasy.vehiclelog.data.local.VehicleDatabase
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.data.local.reminderConstraints
+import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.ui.home.HomeViewModel
 import org.unishiasy.vehiclelog.ui.ledger.LedgerHost
 import org.unishiasy.vehiclelog.ui.ledger.LedgerViewModel
@@ -96,7 +98,7 @@ class AppJourneyRobolectricTest {
         val act = compose.activity
         act.runOnUiThread {
             val factory = viewModelFactory {
-                initializer { HomeViewModel(vehicleRepo, ledgerRepo) }
+                initializer { HomeViewModel(vehicleRepo, ledgerRepo, clock = clock) }
                 initializer { LedgerViewModel(ledgerRepo, clock) }
                 initializer { VehicleViewModel(vehicleRepo) }
                 initializer { RemindersViewModel(reminderRepo, ledgerRepo, clock) }
@@ -206,7 +208,7 @@ class AppJourneyRobolectricTest {
         compose.onNodeWithTag("ledgerVolume").performTextReplacement("۳۰")
         compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
         compose.onNodeWithTag("ledgerMileage").performScrollTo().performTextReplacement("۲۵۰۰۰")
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
 
         compose.waitUntil(5_000) {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
@@ -218,11 +220,107 @@ class AppJourneyRobolectricTest {
     }
 
     @Test
+    fun savedFuelAndOilChangeReconcileInHomeHistoryAndReport() {
+        val otherVehicle = vehicle.copy(id = "test-v-2", displayLabel = "خودروی دوم")
+        val dueId = UUID.randomUUID()
+        mountHost { _, reminders ->
+            database.vehicleDao().insert(otherVehicle)
+            reminders.create(vehicle.id, dueId, ReminderInput("یادآور نمونه", dueOn = "2026-03-21"))
+        }
+
+        fun awaitTag(tag: String) {
+            compose.waitUntil(5_000) {
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                compose.onAllNodesWithTag(tag, useUnmergedTree = tag == "homeMonthTotal").fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+        fun saveEntry(expectedCount: Int) {
+            compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
+            compose.waitUntil(5_000) {
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val state = ledgerVm.state.value
+                state.draft == null && state.entries?.size == expectedCount
+            }
+        }
+
+        awaitTag("homeQuickAdd")
+        compose.onNodeWithTag("homeQuickAdd").performScrollTo().performClick()
+        awaitTag("ledgerAmount")
+        compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۱۵۰٬۰۰۰")
+        compose.onNodeWithTag("ledgerVolume").performScrollTo().performTextReplacement("۳۰")
+        saveEntry(1)
+        compose.activity.runOnUiThread { ledgerVm.back() }
+
+        awaitTag("homeAddExpense")
+        compose.onNodeWithTag("homeAddExpense").performScrollTo().performClick()
+        awaitTag("ledgerCategory")
+        compose.onNodeWithTag("ledgerCategory").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerCategory:oil_change").performClick()
+        compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۸۵۰٬۰۰۰")
+        compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerMileage").performScrollTo().performTextReplacement("۵۶۰۰۰")
+        saveEntry(2)
+
+        val entries = checkNotNull(ledgerVm.state.value.entries).associateBy { it.category }
+        assertEquals(setOf("fuel", "oil_change"), entries.keys)
+        assertEquals(setOf("2026-03-21"), entries.values.map { it.occurredOn }.toSet())
+        val fuel = entries.getValue("fuel")
+        val oil = entries.getValue("oil_change")
+        assertEquals(30_000L, fuel.fuelVolumeMl)
+        assertEquals(1_500_000L, fuel.amountRials)
+        assertEquals(8_500_000L, oil.amountRials)
+        assertEquals(56_000L, oil.linkedOdometerKm)
+        val oilTag = "ledgerRecent:${oil.id}"
+        compose.onNodeWithTag("ledgerHistoryList").performScrollToNode(hasTestTag(oilTag))
+        compose.onNodeWithTag(oilTag).assertIsDisplayed()
+            .assertTextContains(checkNotNull(JalaliDates.formatGregorian(oil.occurredOn)))
+            .assertTextContains("۵۶۰۰۰", substring = true)
+
+        val total = "۱٬۰۰۰٬۰۰۰ تومان"
+        compose.activity.runOnUiThread { ledgerVm.back() }
+        awaitTag("homeMonthTotal")
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(total).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("homeMonthTotal", useUnmergedTree = true).assertTextContains(total)
+        compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
+        awaitTag("dashboardTotal")
+        compose.onNodeWithTag("dashboardVehicle").assertTextContains(vehicle.displayLabel)
+        compose.onNodeWithTag("dashboardMonth").assertTextContains("فروردین ۱۴۰۵")
+        compose.onNodeWithTag("dashboardTotal").assertTextContains(total)
+        for ((category, subtotal) in listOf("fuel" to "۱۵۰٬۰۰۰ تومان", "oil_change" to "۸۵۰٬۰۰۰ تومان")) {
+            val tag = "dashboardCategory:$category"
+            compose.onNodeWithTag("monthlyDashboard").performScrollToNode(hasTestTag(tag))
+            compose.onNodeWithTag(tag).assertTextContains(subtotal)
+        }
+
+        compose.activity.runOnUiThread {
+            ledgerVm.back()
+            ledgerVm.back()
+        }
+        awaitTag("homeDue:$dueId")
+        awaitTag("homeOpenVehicleSwitcher")
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
+        awaitTag("switchVehicle:${otherVehicle.id}")
+        compose.onNodeWithTag("switchVehicle:${otherVehicle.id}").performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("۰ تومان").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("homeMonthTotal", useUnmergedTree = true).assertTextContains("۰ تومان")
+        compose.onNodeWithTag("homeRecent:${oil.id}").assertDoesNotExist()
+        compose.onNodeWithTag("homeRecent:${fuel.id}").assertDoesNotExist()
+        compose.onNodeWithTag("homeDue:$dueId").assertDoesNotExist()
+        compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
+        awaitTag("dashboardTotal")
+        compose.onNodeWithTag("dashboardVehicle").assertTextContains(otherVehicle.displayLabel)
+        compose.onNodeWithTag("dashboardMonth").assertTextContains("فروردین ۱۴۰۵")
+        compose.onNodeWithTag("dashboardTotal").assertTextContains("۰ تومان")
+    }
+
+    @Test
     fun mandatoryOfflineJourneysRecoverRecordsTotalsAndRemindersAfterReopen() {
         val dbFile = File(context.cacheDir, "offline-journey-${UUID.randomUUID()}.db")
         val oilId = UUID.randomUUID()
-        val dueReminderId = UUID.randomUUID()
-
         fun openDb(): VehicleDatabase = Room.databaseBuilder(context, VehicleDatabase::class.java, dbFile.absolutePath)
             .allowMainThreadQueries()
             .addCallback(reminderConstraints)
@@ -256,152 +354,158 @@ class AppJourneyRobolectricTest {
             compose.waitForIdle()
         }
 
+        fun awaitState(description: String, predicate: () -> Boolean) {
+            compose.waitUntil(description, 5_000) {
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                predicate()
+            }
+        }
+
+        fun awaitTag(tag: String) = awaitState(tag) {
+            compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        fun scrollToReminderTag(tag: String) {
+            compose.onNodeWithTag("remindersScreen").performScrollToNode(hasTestTag(tag))
+        }
+
+        fun openReminders() {
+            awaitTag("homeOpenReminders")
+            compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+            awaitTag("remindersScreen")
+        }
+
+        fun openCreateForm(dueCount: Int) {
+            awaitState("$dueCount due reminders") { reminderVm.state.value.list?.due?.size == dueCount }
+            compose.onNodeWithTag("dockPrimaryAction").performClick()
+            awaitTag("reminderTitle")
+            compose.onNodeWithTag("reminderTitle").assertIsDisplayed().assertIsFocused()
+        }
+
+        fun enterReminderField(tag: String, value: String) {
+            scrollToReminderTag(tag)
+            compose.onNodeWithTag(tag).performTextReplacement(value)
+        }
+
+        fun saveReminder() {
+            scrollToReminderTag("reminderSave")
+            compose.onNodeWithTag("reminderSave").performClick()
+        }
+
+        val total = "۱٬۰۰۰٬۰۰۰ تومان"
+        val futureTitle = "سرویس دوره‌ای بعدی"
+        val dueTitle = "تعویض فیلتر"
+        val extraId = UUID.randomUUID()
+        fun verifyHomeTotal() {
+            awaitState("Home total $total") {
+                compose.onAllNodesWithText(total).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithTag("homeMonthTotal", useUnmergedTree = true).assertTextContains(total)
+        }
+
         try {
             database = openDb()
             runBlocking {
                 database.vehicleDao().insert(vehicle)
-                val seedLedger = LedgerRepository(database)
-                val seedReminders = ReminderRepository(database, seedLedger, clock)
-                seedLedger.create(
-                    oilId,
-                    1_774_087_000_000L,
-                    EntryInput(vehicle.id, "oil_change", "2026-03-21", 500_000L),
-                    kilometers = 42_000L,
-                )
-                seedReminders.create(
-                    vehicle.id,
-                    dueReminderId,
-                    ReminderInput("بیمه شخص ثالث", dueOn = "2026-03-21"),
+                assertEquals(
+                    EntrySaveResult.Saved,
+                    LedgerRepository(database).create(
+                        oilId, 1_774_087_000_000L,
+                        EntryInput(vehicle.id, "oil_change", "2026-03-21", 8_500_000L),
+                        kilometers = 56_000L,
+                    ),
                 )
             }
             mount("run1", database)
 
-            // Journey A: Record fuel from Home shortcut
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("homeQuickAdd").fetchSemanticsNodes().isNotEmpty()
-            }
+            awaitTag("homeQuickAdd")
             compose.onNodeWithTag("homeQuickAdd").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("ledgerAmount").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۲۰۰٬۰۰۰")
-            compose.onNodeWithTag("ledgerVolume").performScrollTo().performTextReplacement("۳۵")
-            compose.onNodeWithTag("ledgerDate").performScrollTo().performTextReplacement("۱۴۰۵/۰۱/۰۱")
-            compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithText(context.getString(R.string.ledger_saved)).fetchSemanticsNodes().isNotEmpty()
+            awaitTag("ledgerAmount")
+            compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۱۵۰٬۰۰۰")
+            compose.onNodeWithTag("ledgerVolume").performScrollTo().performTextReplacement("۳۰")
+            compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
+            awaitState("two saved ledger entries") {
+                ledgerVm.state.value.draft == null && ledgerVm.state.value.entries?.size == 2
             }
             compose.activity.runOnUiThread { ledgerVm.back() }
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("homeAddExpense").fetchSemanticsNodes().isNotEmpty()
-            }
+            verifyHomeTotal()
 
-            // Journey A: Record expense from Home shortcut
-            compose.onNodeWithTag("homeAddExpense").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("ledgerAmount").fetchSemanticsNodes().isNotEmpty()
+            openReminders()
+            openCreateForm(dueCount = 0)
+            enterReminderField("reminderTitle", futureTitle)
+            enterReminderField("reminderDate", "۱۴۰۵/۰۲/۰۱")
+            saveReminder()
+            awaitState("future reminder saved") {
+                reminderVm.state.value.list?.rows?.singleOrNull()?.title == futureTitle
             }
-            compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۱۰۰٬۰۰۰")
-            compose.onNodeWithTag("ledgerDate").performScrollTo().performTextReplacement("۱۴۰۵/۰۱/۰۱")
-            compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithText(context.getString(R.string.ledger_saved)).fetchSemanticsNodes().isNotEmpty()
-            }
+            compose.runOnIdle { assertTrue(reminderVm.state.value.list?.due.orEmpty().isEmpty()) }
 
-            // Verify oil change date & odometer + both new entries in History (Journey A & B)
-            compose.onNodeWithTag("ledgerHistoryList").performScrollToNode(hasTestTag("ledgerRecent:$oilId"))
-            compose.onNodeWithTag("ledgerRecent:$oilId").assertIsDisplayed().assertTextContains("۴۲۰۰۰", substring = true)
+            openCreateForm(dueCount = 0)
+            enterReminderField("reminderTitle", dueTitle)
+            scrollToReminderTag("reminderMileageType")
+            compose.onNodeWithTag("reminderMileageType").performClick()
+            enterReminderField("reminderMileage", "۵۶۰۰۰")
+            saveReminder()
+            awaitState("mileage reminder due at equality") {
+                val list = reminderVm.state.value.list
+                list?.mileage == 56_000L && list.due.singleOrNull()?.title == dueTitle
+            }
+            val dueReminder = checkNotNull(reminderVm.state.value.list).due.single()
+            assertEquals(56_000L, dueReminder.dueKilometers)
+            val dueTag = "reminder:${dueReminder.id}"
+            scrollToReminderTag("reminderDueSection")
+            compose.onNodeWithTag("reminderDueSection").assertIsDisplayed()
+            scrollToReminderTag(dueTag)
+            compose.onNodeWithText(dueTitle).assertIsDisplayed()
+            compose.onNodeWithText("سررسید شده").assertIsDisplayed()
+            openCreateForm(dueCount = 1)
 
-            // Verify Monthly Dashboard total = 50,000 + 200,000 + 100,000 = 350,000 Toman
-            compose.activity.runOnUiThread { ledgerVm.openDashboard() }
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("dashboardTotal").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("dashboardTotal").assertTextContains("۳۵۰٬۰۰۰ تومان")
-            compose.activity.runOnUiThread {
-                ledgerVm.back()
-                ledgerVm.back()
-            }
+            // A second due fixture exercises the shortcut with a longer due section.
+            runBlocking { reminderRepo.create(vehicle.id, extraId, ReminderInput("یادآور آزمایشی", dueOn = "2026-03-21")) }
+            openCreateForm(dueCount = 2)
+            runBlocking { reminderRepo.cancel(vehicle.id, extraId) }
+            awaitState("only the mileage reminder is due") { reminderVm.state.value.list?.due?.singleOrNull()?.id == dueReminder.id }
 
-            // Journey B: See separate due reminder on Home, open Reminders, create future reminder, mark due reminder done
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("homeDue:$dueReminderId").fetchSemanticsNodes().isNotEmpty()
+            compose.activity.runOnUiThread { reminderVm.back() }
+            awaitTag("homeDue:${dueReminder.id}")
+            openReminders()
+            val completeTag = "reminderComplete:${dueReminder.id}"
+            scrollToReminderTag(completeTag)
+            compose.onNodeWithText("انجام شد").assertIsDisplayed()
+            compose.onNodeWithTag(completeTag).performClick()
+            awaitState("mileage reminder completed") {
+                val list = reminderVm.state.value.list
+                list?.due?.isEmpty() == true && list.rows.any { it.id == dueReminder.id && it.state == "completed" }
             }
-            compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("reminderTitle").fetchSemanticsNodes().isNotEmpty()
-            }
+            compose.onNodeWithTag("reminderDueSection").assertDoesNotExist()
+            scrollToReminderTag(dueTag)
+            compose.onNodeWithText(context.getString(R.string.reminder_status_completed)).assertIsDisplayed()
+            compose.activity.runOnUiThread { reminderVm.back() }
+            verifyHomeTotal()
+            compose.onNodeWithTag("homeDue:${dueReminder.id}").assertDoesNotExist()
 
-            compose.onNodeWithTag("reminderTitle").performTextReplacement("سرویس دوره‌ای بعدی")
-            compose.onNodeWithTag("reminderDate").performTextReplacement("۱۴۰۵/۰۲/۰۱")
-            compose.onNodeWithTag("reminderSave").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithText(context.getString(R.string.reminder_created)).fetchSemanticsNodes().isNotEmpty()
-            }
-
-            compose.onNodeWithTag("remindersScreen").performScrollToNode(hasTestTag("reminderComplete:$dueReminderId"))
-            compose.onNodeWithTag("reminderComplete:$dueReminderId").performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("reminderRecurringBanner").fetchSemanticsNodes().isNotEmpty() &&
-                    reminderVm.state.value.list?.rows?.singleOrNull { it.id == dueReminderId.toString() }?.state == "completed"
-            }
-
-            // Simulate offline app close & reopen with fresh DB instance and fresh ViewModels
             database.close()
             database = openDb()
             mount("run2", database)
-
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("homeOpenHistory").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("homeDue:$dueReminderId").assertDoesNotExist()
-
-            // Confirm recovered records & monthly total
-            compose.onNodeWithTag("homeOpenHistory").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("ledgerHistoryList").fetchSemanticsNodes().isNotEmpty() &&
-                    ledgerVm.state.value.entries?.size == 3
-            }
-            compose.onNodeWithTag("ledgerHistoryList").performScrollToNode(hasTestTag("ledgerRecent:$oilId"))
-            compose.onNodeWithTag("ledgerRecent:$oilId").assertIsDisplayed().assertTextContains("۴۲۰۰۰", substring = true)
-
-            compose.activity.runOnUiThread { ledgerVm.openDashboard() }
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("dashboardTotal").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("dashboardTotal").assertTextContains("۳۵۰٬۰۰۰ تومان")
+            verifyHomeTotal()
+            compose.onNodeWithTag("homeDue:${dueReminder.id}").assertDoesNotExist()
+            compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
+            awaitTag("dashboardTotal")
+            compose.onNodeWithTag("dashboardTotal").assertTextContains(total)
             compose.activity.runOnUiThread {
                 ledgerVm.back()
                 ledgerVm.back()
             }
-
-            // Confirm recovered reminders (future active + due marked completed)
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                compose.onAllNodesWithTag("homeOpenReminders").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
-            compose.waitUntil(5_000) {
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                reminderVm.state.value.list?.rows?.size == 2
-            }
-            val rows = reminderVm.state.value.list?.rows.orEmpty()
-            assertEquals("completed", rows.single { it.id == dueReminderId.toString() }.state)
-            assertEquals("active", rows.single { it.title == "سرویس دوره‌ای بعدی" }.state)
+            openReminders()
+            awaitState("all reminder states reloaded") { reminderVm.state.value.list?.rows?.size == 3 }
+            val list = checkNotNull(reminderVm.state.value.list)
+            assertTrue(list.due.isEmpty())
+            assertEquals("completed", list.rows.single { it.id == dueReminder.id }.state)
+            val future = list.rows.single { it.title == futureTitle }
+            assertEquals("active", future.state)
+            assertEquals("2026-04-21", future.dueOn)
+            scrollToReminderTag("reminder:${future.id}")
+            compose.onNodeWithText(futureTitle).assertIsDisplayed()
         } finally {
             if (::database.isInitialized) database.close()
             dbFile.delete()

@@ -82,12 +82,12 @@ internal class LedgerViewModel(
         observe(vehicle.id)
     }
 
-    fun openDashboardForVehicle(vehicle: VehicleEntity) {
+    fun openDashboardForVehicle(vehicle: VehicleEntity, month: JalaliMonth? = JalaliDates.monthOf(todayDate())) {
         if (state.value.vehicle != null) return
         setState(
             LedgerUiState(
                 vehicle = vehicle,
-                dashboard = MonthlyDashboardState.open(clock),
+                dashboard = MonthlyDashboardState(currentMonth = month),
             )
         )
         observe(vehicle.id)

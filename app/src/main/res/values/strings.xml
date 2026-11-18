@@ -132,11 +132,12 @@
     <string name="reminder_no_longer_active">این یادآور دیگر فعال نیست.</string>
     <string name="reminder_date_summary">تاریخ سررسید: %1$s</string>
     <string name="reminder_mileage_summary">کارکرد سررسید: %1$s کیلومتر</string>
-    <string name="reminder_status_due">سررسیدشده</string>
+    <string name="reminders_due_section">یادآورهای سررسید شده</string>
+    <string name="reminder_status_due">سررسید شده</string>
     <string name="reminder_status_pending">در انتظار سررسید</string>
     <string name="reminder_status_completed">انجام‌شده</string>
     <string name="reminder_status_canceled">لغوشده</string>
-    <string name="reminder_complete_action">ثبت به‌عنوان انجام‌شده</string>
+    <string name="reminder_complete_action">انجام شد</string>
     <string name="reminder_cancel_action">لغو یادآور</string>
     <string name="reminder_cancel_confirm_title">لغو یادآور</string>
     <string name="reminder_cancel_confirm_body">آیا از لغو یادآور «%1$s» مطمئن هستید؟ این یادآور دیگر فعال نخواهد بود.</string>
@@ -174,7 +175,7 @@
     <string name="home_empty_backup_title">قبلاً پشتیبان گرفته‌اید؟</string>
     <string name="home_empty_backup_description">اگر قبلاً از دفتر خودرو فایل پشتیبان تهیه کرده‌اید، می‌توانید آن را بازیابی کنید.</string>
     <string name="home_log_fuel">ثبت سوخت</string>
-    <string name="home_log_expense">ثبت هزینه +</string>
+    <string name="home_log_expense">ثبت هزینه</string>
     <string name="home_all_history">همه سوابق هزینه‌ها</string>
     <string name="home_notebook_report">گزارش ماهانه</string>
     <string name="home_notebook_reminders">یادآورها</string>

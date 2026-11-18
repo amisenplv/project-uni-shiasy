@@ -256,7 +256,7 @@ class LedgerEntryUiTest {
         replace("Notes", "پیش‌نویس LX")
         field("Notes").performScrollTo().performTouchInput { click() }
         compose.waitUntil(5_000) { imeVisible() }
-        val save = compose.onNodeWithTag("ledgerSave").performScrollTo().assertIsDisplayed()
+        val save = compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
         assertTrue(imeVisible())
         save.performTouchInput { click() }
         await(R.string.ledger_check_fields)
@@ -275,7 +275,7 @@ class LedgerEntryUiTest {
         field("Date").performScrollTo().assertTextContains("۱۴۰۴/۱۲/۳۰")
         await(R.string.ledger_date_invalid)
         field("Notes").performScrollTo().assertTextContains("پیش‌نویس LX")
-        compose.onNodeWithTag("ledgerSave").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
         val screenshot = instrumentation.uiAutomation.takeScreenshot()
         if (screenshot != null) {
             File(context.filesDir, "m33a-enlarged.png").outputStream().use {
@@ -337,7 +337,7 @@ class LedgerEntryUiTest {
         openNew()
         enterFuel()
         val draft = ledger.state.value.draft!!
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
         await(R.string.ledger_storage_failure)
         assertEquals(draft, ledger.state.value.draft)
         assertTrue(runBlocking { repository.observeForVehicle(vehicle.id).first().isEmpty() })
@@ -358,7 +358,7 @@ class LedgerEntryUiTest {
         openNew()
         enterFuel()
         val draft = ledger.state.value.draft!!
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
         await(R.string.ledger_mileage_conflict_action)
         assertEquals(draft, ledger.state.value.draft)
         assertTrue(runBlocking { repository.observeForVehicle(vehicle.id).first().isEmpty() })
@@ -503,7 +503,7 @@ class LedgerEntryUiTest {
         replace("Volume", "۳٢٫۴۵۰")
         compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
         replace("Mileage", "۱۲۰۰")
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
         await(R.string.ledger_saved)
 
         val fuelEntry = runBlocking {
@@ -521,7 +521,7 @@ class LedgerEntryUiTest {
         openRecent(fuelId)
         replace("Amount", "۱۵٬۰۰۰")
         replace("Mileage", "۱۲۵۰")
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
         await(R.string.ledger_saved)
 
         val editedFuel = runBlocking { repository.findWithReading(fuelId)!! }
@@ -603,7 +603,7 @@ class LedgerEntryUiTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("entryDetailEdit").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("entryDetailEdit").performClick()
         compose.waitUntil(5_000) { ledger.state.value.draft?.id == targetId }
-        compose.onNodeWithTag("ledgerSave").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
 
         compose.onNodeWithText(context.getString(R.string.vehicle_cancel)).performScrollTo().performClick()
         compose.waitUntil(5_000) { ledger.state.value.draft == null }
@@ -717,7 +717,7 @@ class LedgerEntryUiTest {
     }
 
     private fun save() {
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
         await(R.string.ledger_saved)
     }
 

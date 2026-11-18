@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -32,7 +31,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,8 +48,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -60,13 +56,16 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.text.style.TextOverflow
 import java.math.BigDecimal
+import java.math.BigInteger
 import kotlinx.coroutines.delay
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.data.local.ReminderEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
+import org.unishiasy.vehiclelog.domain.JalaliMonth
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
 import org.unishiasy.vehiclelog.ui.components.NoticeBanner
@@ -76,14 +75,14 @@ import org.unishiasy.vehiclelog.ui.ledger.OdometerSheet
 import org.unishiasy.vehiclelog.ui.reminders.ReminderThresholdText
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
-import org.unishiasy.vehiclelog.ui.vehicle.toPersianYear
 
 @Composable
 internal fun HomeScreen(
     viewModel: HomeViewModel,
+    state: HomeUiState,
     onQuickAdd: (VehicleEntity) -> Unit,
     onOpenHistory: (VehicleEntity) -> Unit,
-    onOpenDashboard: (VehicleEntity) -> Unit,
+    onOpenDashboard: (VehicleEntity, JalaliMonth?) -> Unit,
     onAddVehicle: () -> Unit,
     onEditVehicle: (VehicleEntity) -> Unit,
     onOpenReminders: ((VehicleEntity) -> Unit)? = null,
@@ -100,7 +99,8 @@ internal fun HomeScreen(
     onDismissStaleBackup: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val month by viewModel.currentMonth.collectAsStateWithLifecycle(JalaliDates.monthOf(viewModel.todayDate()))
+    val monthlyReport by viewModel.monthlyReport.collectAsStateWithLifecycle()
     val vehicles = state.vehicles.orEmpty()
     val selectedVehicle = state.selectedVehicle
     val semanticColors = LocalVehicleLogSemanticColors.current
@@ -190,7 +190,7 @@ internal fun HomeScreen(
                     Text(
                         stringResource(R.string.app_name),
                         modifier = Modifier.semantics { heading() },
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
@@ -212,314 +212,60 @@ internal fun HomeScreen(
                 }
             }
 
-            if (showVehicleSavedBanner) {
-                NoticeBanner(
-                    title = stringResource(R.string.vehicle_saved),
-                    tone = NoticeTone.Success,
-                    modifier = Modifier.testTag("homeVehicleSavedBanner"),
-                )
-            }
-
-            state.odometerFeedbackRes?.let { feedbackRes ->
-                NoticeBanner(
-                    title = stringResource(feedbackRes),
-                    tone = NoticeTone.Success,
-                    modifier = Modifier.testTag("homeOdometerSavedBanner"),
-                )
-            }
-
-            if (showStaleBackupBanner && onOpenSettings != null) {
-                OutlinedCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("homeStaleBackupBanner"),
-                    shape = VehicleLogShapes.large,
-                    colors = CardDefaults.outlinedCardColors(containerColor = semanticColors.warningSurface),
-                    border = BorderStroke(1.dp, semanticColors.warningEdge),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.backup_stale_banner_title),
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = semanticColors.onWarning,
-                        )
-                        Text(
-                            text = stringResource(R.string.backup_stale_banner_body),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = onOpenSettings,
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("homeStaleBackupAction"),
-                                shape = VehicleLogShapes.medium,
-                            ) {
-                                Text(stringResource(R.string.backup_stale_action))
-                            }
-                            TextButton(
-                                onClick = onDismissStaleBackup,
-                                modifier = Modifier.heightIn(min = 48.dp).testTag("homeStaleBackupDismiss"),
-                            ) {
-                                Text(stringResource(R.string.backup_stale_dismiss))
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Multi-Vehicle Selector Cards (Visible when multiple vehicles are registered)
-            if (vehicles.size > 1) {
-                Text(
-                    stringResource(R.string.home_switch_vehicle),
-                    modifier = Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                )
-                Column(
-                    modifier = Modifier.fillMaxWidth().testTag("homeVehicleSelector"),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (vehicle in vehicles) {
-                        val isSelected = vehicle.id == selectedVehicle?.id
-                        OutlinedCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = isSelected,
-                                    role = Role.RadioButton,
-                                    onClick = { viewModel.selectVehicle(vehicle.id) },
-                                )
-                                .testTag("homeVehicle:${vehicle.id}"),
-                            shape = VehicleLogShapes.medium,
-                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                            else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                            colors = if (isSelected) CardDefaults.outlinedCardColors(
-                                containerColor = semanticColors.wash.copy(alpha = 0.5f)
-                            ) else CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    RadioButton(
-                                        selected = isSelected,
-                                        onClick = null,
-                                    )
-                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            vehicle.displayLabel,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                textDirection = TextDirection.ContentOrRtl,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            ),
-                                        )
-                                        val calendarRes = when (vehicle.productionYearCalendar) {
-                                            "solar_hijri" -> R.string.vehicle_solar_hijri
-                                            "gregorian" -> R.string.vehicle_gregorian
-                                            else -> null
-                                        }
-                                        if (vehicle.productionYear != null && calendarRes != null) {
-                                            Text(
-                                                stringResource(
-                                                    R.string.vehicle_year_summary,
-                                                    vehicle.productionYear.toPersianYear(),
-                                                    stringResource(calendarRes),
-                                                ),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
-                                }
-                                val editDescription = "${stringResource(R.string.vehicle_edit)} ${vehicle.displayLabel}"
-                                IconButton(
-                                    onClick = { onEditVehicle(vehicle) },
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .testTag("homeEditVehicle:${vehicle.id}")
-                                        .semantics { contentDescription = editDescription },
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_edit),
-                                        contentDescription = editDescription,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Primary Vehicle Readout Card
             if (selectedVehicle != null) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("homeSelectedVehicleCard"),
-                    shape = VehicleLogShapes.large,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                val mileage = state.selectedVehicleMileage
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth().testTag("homeSelectedVehicleCard"),
+                    shape = VehicleLogShapes.medium,
+                    colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // Vehicle Identity Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
+                        Column(
+                            modifier = Modifier.weight(1f)
+                                .heightIn(min = 48.dp)
+                                .clickable(onClickLabel = stringResource(R.string.vehicle_select_title)) {
+                                    showVehicleSwitcher = true
+                                }
+                                .testTag("homeOpenVehicleSwitcher")
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.Center,
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .heightIn(min = 48.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(onClickLabel = stringResource(R.string.vehicle_select_title)) {
-                                        showVehicleSwitcher = true
-                                    }
-                                    .testTag("homeOpenVehicleSwitcher"),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(semanticColors.wash),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_car),
-                                        contentDescription = null,
-                                        tint = semanticColors.action,
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(
-                                        selectedVehicle.displayLabel,
-                                        style = MaterialTheme.typography.titleLarge.copy(
-                                            textDirection = TextDirection.ContentOrRtl,
-                                            fontWeight = FontWeight.Bold,
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.testTag("homeSelectedVehicleName"),
-                                    )
-                                    val calendarRes = when (selectedVehicle.productionYearCalendar) {
-                                        "solar_hijri" -> R.string.vehicle_solar_hijri
-                                        "gregorian" -> R.string.vehicle_gregorian
-                                        else -> null
-                                    }
-                                    if (selectedVehicle.productionYear != null && calendarRes != null) {
-                                        Text(
-                                            stringResource(
-                                                R.string.vehicle_year_summary,
-                                                selectedVehicle.productionYear.toPersianYear(),
-                                                stringResource(calendarRes),
-                                            ),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            }
-
-                            val editDesc = "${stringResource(R.string.vehicle_edit)} ${selectedVehicle.displayLabel}"
-                            IconButton(
-                                onClick = { onEditVehicle(selectedVehicle) },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .testTag("homeEditVehicle:${selectedVehicle.id}")
-                                    .semantics { contentDescription = editDesc },
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_edit),
-                                    contentDescription = editDesc,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp),
+                            Text(
+                                selectedVehicle.displayLabel,
+                                modifier = Modifier.testTag("homeSelectedVehicleName"),
+                                style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.ContentOrRtl),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Box(Modifier.testTag("homeCurrentMileage")) {
+                                Text(
+                                    if (mileage == null) stringResource(R.string.ledger_mileage_reference_empty)
+                                    else stringResource(R.string.ledger_kilometers, "\u2066${mileage.toString().withPersianDigits()}\u2069"),
+                                    modifier = Modifier.testTag("homeMileageValue"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
-
-                        // Odometer Inset Panel
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(semanticColors.odometerContainer)
-                                .padding(horizontal = 14.dp, vertical = 12.dp)
-                                .testTag("homeCurrentMileage"),
+                        IconButton(onClick = viewModel::openOdometerSheet, modifier = Modifier.testTag("homeUpdateMileage")) {
+                            Icon(
+                                painterResource(R.drawable.ic_car),
+                                contentDescription = stringResource(R.string.home_update_mileage),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(
+                            onClick = { onEditVehicle(selectedVehicle) },
+                            modifier = Modifier.testTag("homeEditVehicle:${selectedVehicle.id}"),
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    stringResource(R.string.home_current_mileage),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = semanticColors.odometerMuted,
-                                )
-                                val mileage = state.selectedVehicleMileage
-                                if (mileage != null) {
-                                    Text(
-                                        stringResource(
-                                            R.string.ledger_kilometers,
-                                            "\u2066${mileage.toString().withPersianDigits()}\u2069",
-                                        ),
-                                        style = MaterialTheme.typography.displayMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = semanticColors.onOdometer,
-                                        ),
-                                        modifier = Modifier.testTag("homeMileageValue"),
-                                    )
-                                } else {
-                                    Text(
-                                        stringResource(R.string.ledger_mileage_reference_empty),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = semanticColors.odometerMuted,
-                                        modifier = Modifier.testTag("homeMileageValue"),
-                                    )
-                                }
-                                OutlinedButton(
-                                    onClick = viewModel::openOdometerSheet,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 48.dp)
-                                        .testTag("homeUpdateMileage"),
-                                    shape = VehicleLogShapes.small,
-                                    border = BorderStroke(1.dp, semanticColors.odometerMuted.copy(alpha = 0.5f)),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_edit),
-                                        contentDescription = null,
-                                        tint = semanticColors.onOdometer,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        text = stringResource(R.string.home_update_mileage),
-                                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                                        color = semanticColors.onOdometer,
-                                    )
-                                }
-                            }
+                            Icon(
+                                painterResource(R.drawable.ic_edit),
+                                contentDescription = stringResource(R.string.vehicle_edit),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
@@ -583,7 +329,7 @@ internal fun HomeScreen(
                                 Text(
                                     stringResource(R.string.home_log_expense),
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
@@ -607,65 +353,93 @@ internal fun HomeScreen(
                     }
                 }
 
-                // Due Service Banner (Warning Card with 3dp Amber Edge)
-                if (dueReminders != null && dueReminders.isNotEmpty()) {
-                    for (due in dueReminders) {
-                        Card(
+                dueReminders?.firstOrNull()?.let { due ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onOpenReminders?.invoke(selectedVehicle) }
+                            .testTag("homeDue:${due.id}"),
+                        shape = VehicleLogShapes.medium,
+                        colors = CardDefaults.cardColors(containerColor = semanticColors.warningSurface),
+                        border = BorderStroke(1.5.dp, semanticColors.warningEdge),
+                    ) {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onOpenReminders?.invoke(selectedVehicle) }
-                                .testTag("homeDue:${due.id}"),
-                            shape = VehicleLogShapes.medium,
-                            colors = CardDefaults.cardColors(containerColor = semanticColors.warningSurface),
-                            border = BorderStroke(1.5.dp, semanticColors.warningEdge),
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                            Icon(
+                                painter = painterResource(R.drawable.ic_bell),
+                                contentDescription = null,
+                                tint = semanticColors.onWarning,
+                                modifier = Modifier.size(24.dp),
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_bell),
-                                    contentDescription = null,
-                                    tint = semanticColors.onWarning,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    Text(
+                                        due.title,
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            textDirection = TextDirection.ContentOrRtl,
+                                        ),
+                                        color = semanticColors.onWarning,
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(semanticColors.warningEdge)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
                                     ) {
                                         Text(
-                                            due.title,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                textDirection = TextDirection.ContentOrRtl,
-                                            ),
-                                            color = semanticColors.onWarning,
+                                            stringResource(R.string.reminders_status_due_badge),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = semanticColors.onWarningEdge,
                                         )
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(semanticColors.warningEdge)
-                                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                                        ) {
-                                            Text(
-                                                stringResource(R.string.reminders_status_due_badge),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = semanticColors.onWarningEdge,
-                                            )
-                                        }
                                     }
-                                    ReminderThresholdText(due)
                                 }
+                                ReminderThresholdText(due)
                             }
+                        }
+                    }
+                }
+
+                val displayedMonth = month
+                val report = monthlyReport?.takeIf { it.first == selectedVehicle.id }?.second
+                OutlinedCard(
+                    onClick = { onOpenDashboard(selectedVehicle, displayedMonth) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("homeOpenDashboard"),
+                    shape = VehicleLogShapes.medium,
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            stringResource(R.string.home_notebook_report),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (displayedMonth != null) {
+                            Text(JalaliDates.formatMonth(displayedMonth), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (report == null) stringResource(R.string.dashboard_loading)
+                                else stringResource(
+                                    R.string.dashboard_toman,
+                                    Money.formatTomanTotal(report.months.firstOrNull { it.month == displayedMonth }?.totals?.totalRials ?: BigInteger.ZERO),
+                                ),
+                                modifier = Modifier.testTag("homeMonthTotal"),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        } else {
+                            Text(stringResource(R.string.dashboard_current_unsupported))
                         }
                     }
                 }
@@ -732,100 +506,70 @@ internal fun HomeScreen(
                     }
                 }
 
-                // Bottom Cards: Monthly Report & Reminders (responsive stack at high fontScale or narrow widths)
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val stackBottomCards = fontScale >= 1.35f || maxWidth < 360.dp
-                    val dashboardCard: @Composable (Modifier) -> Unit = { cardModifier ->
-                        OutlinedCard(
-                            modifier = cardModifier
-                                .heightIn(min = 56.dp)
-                                .clickable { onOpenDashboard(selectedVehicle) }
-                                .testTag("homeOpenDashboard"),
-                            shape = VehicleLogShapes.medium,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(semanticColors.wash),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_chart),
-                                        contentDescription = null,
-                                        tint = semanticColors.action,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                                Text(
-                                    stringResource(R.string.home_notebook_report),
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-                        }
-                    }
-                    val remindersCard: @Composable (Modifier) -> Unit = { cardModifier ->
-                        if (onOpenReminders != null) {
-                            OutlinedCard(
-                                modifier = cardModifier
-                                    .heightIn(min = 56.dp)
-                                    .clickable { onOpenReminders(selectedVehicle) }
-                                    .testTag("homeOpenReminders"),
-                                shape = VehicleLogShapes.medium,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(semanticColors.wash),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_bell),
-                                            contentDescription = null,
-                                            tint = semanticColors.action,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                    Text(
-                                        stringResource(R.string.home_notebook_reminders),
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    if (stackBottomCards) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            dashboardCard(Modifier.fillMaxWidth())
-                            remindersCard(Modifier.fillMaxWidth())
-                        }
-                    } else {
+                if (onOpenReminders != null) {
+                    TextButton(
+                        onClick = { onOpenReminders(selectedVehicle) },
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("homeOpenReminders"),
+                    ) { Text(stringResource(R.string.home_notebook_reminders)) }
+                }
+            }
+
+            if (showVehicleSavedBanner) {
+                NoticeBanner(
+                    title = stringResource(R.string.vehicle_saved),
+                    tone = NoticeTone.Success,
+                    modifier = Modifier.testTag("homeVehicleSavedBanner"),
+                )
+            }
+
+            state.odometerFeedbackRes?.let { feedbackRes ->
+                NoticeBanner(
+                    title = stringResource(feedbackRes),
+                    tone = NoticeTone.Success,
+                    modifier = Modifier.testTag("homeOdometerSavedBanner"),
+                )
+            }
+
+            if (showStaleBackupBanner && onOpenSettings != null) {
+                OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("homeStaleBackupBanner"),
+                    shape = VehicleLogShapes.large,
+                    colors = CardDefaults.outlinedCardColors(containerColor = semanticColors.warningSurface),
+                    border = BorderStroke(1.dp, semanticColors.warningEdge),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.backup_stale_banner_title),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = semanticColors.onWarning,
+                        )
+                        Text(
+                            text = stringResource(R.string.backup_stale_banner_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            dashboardCard(Modifier.weight(1f))
-                            remindersCard(Modifier.weight(1f))
+                            OutlinedButton(
+                                onClick = onOpenSettings,
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("homeStaleBackupAction"),
+                                shape = VehicleLogShapes.medium,
+                            ) {
+                                Text(stringResource(R.string.backup_stale_action))
+                            }
+                            TextButton(
+                                onClick = onDismissStaleBackup,
+                                modifier = Modifier.heightIn(min = 48.dp).testTag("homeStaleBackupDismiss"),
+                            ) {
+                                Text(stringResource(R.string.backup_stale_dismiss))
+                            }
                         }
                     }
                 }

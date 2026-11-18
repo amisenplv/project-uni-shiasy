@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -101,6 +101,7 @@ import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
 import org.unishiasy.vehiclelog.ui.components.AppBottomDock
+import org.unishiasy.vehiclelog.ui.components.StickyFormFooter
 import org.unishiasy.vehiclelog.ui.components.EntrySelectorSheet
 import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.components.MainTab
@@ -311,6 +312,7 @@ internal fun LedgerHost(
             (lastBackupEpoch == null || backupPreferences.isBackupStale())
         HomeScreen(
             viewModel = home,
+            state = checkNotNull(homeState),
             onQuickAdd = ledger::openQuickAdd,
             onOpenHistory = ledger::openVehicle,
             onOpenDashboard = ledger::openDashboardForVehicle,
@@ -657,6 +659,7 @@ private fun HistoryView(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger: LedgerViewModel) {
     val semanticColors = LocalVehicleLogSemanticColors.current
@@ -758,11 +761,13 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
-                            Text(
-                                jalaliDateStr,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            if (entry.linkedOdometerKm == null) {
+                                Text(
+                                    jalaliDateStr,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
 
@@ -790,10 +795,10 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
                 // Volume, Mileage & Notes Details
                 val hasDetails = entry.fuelVolumeMl != null || entry.linkedOdometerKm != null || !entry.notes.isNullOrBlank()
                 if (hasDetails) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         entry.fuelVolumeMl?.let { volumeMl ->
                             val liters = java.math.BigDecimal.valueOf(volumeMl, 3).stripTrailingZeros().toPlainString()
@@ -805,6 +810,11 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
                             )
                         }
                         entry.linkedOdometerKm?.let { km ->
+                            Text(
+                                jalaliDateStr,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             val kmString = km.toString().withPersianDigits()
                             Text(
                                 stringResource(R.string.ledger_kilometers, "\u2066$kmString\u2069"),
@@ -856,7 +866,6 @@ private fun EntryFormScreen(
     state: LedgerUiState,
     ledger: LedgerViewModel,
 ) {
-    val enabled = !state.saving
     val screenTitleRes = when {
         draft.editing -> R.string.ledger_edit
         else -> R.string.ledger_add
@@ -865,13 +874,21 @@ private fun EntryFormScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            StickyFormFooter(
+                actionLabel = stringResource(if (draft.editing) R.string.vehicle_save else R.string.ledger_save),
+                onAction = ledger::save,
+                modifier = Modifier.navigationBarsPadding(),
+                isActionBusy = state.saving,
+                actionTestTag = "ledgerSave",
+            )
+        },
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
-                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -946,8 +963,7 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
         )
     }
 
-    // If general expense mode, show category selection first
-    if (draft.category != EntryCategory.Fuel || draft.editing) {
+    if (draft.category != EntryCategory.Fuel) {
         CategoryField(draft.category, enabled, ledger::changeCategory)
     }
 
@@ -1064,6 +1080,10 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
         }
     }
 
+    if (draft.category == EntryCategory.Fuel) {
+        CategoryField(draft.category, enabled, ledger::changeCategory)
+    }
+
     // Accordion Disclosure: Mileage & Notes (Optional)
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -1168,26 +1188,6 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
                 style = MaterialTheme.typography.labelLarge,
             )
         }
-    }
-
-    // Sticky Primary Commit Action
-    Button(
-        onClick = ledger::save,
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .testTag("ledgerSave"),
-        enabled = enabled,
-        shape = VehicleLogShapes.medium,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-    ) {
-        Text(
-            stringResource(if (enabled) (if (draft.editing) R.string.vehicle_save else R.string.ledger_save) else R.string.ledger_saving),
-            style = MaterialTheme.typography.labelLarge,
-        )
     }
 
     OutlinedButton(

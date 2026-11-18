@@ -9,22 +9,27 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.EntrySaveResult
 import org.unishiasy.vehiclelog.data.LedgerRepository
 import org.unishiasy.vehiclelog.data.OdometerInput
+import org.unishiasy.vehiclelog.data.VehicleMonthlyReport
 import org.unishiasy.vehiclelog.data.VehicleRepository
 import org.unishiasy.vehiclelog.data.local.OdometerReadingEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.normalizeInputDigits
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.reminders.millisUntilTehranMidnight
 
 data class OdometerDraft(
     val vehicleId: String,
@@ -79,6 +84,8 @@ class HomeViewModel(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HomeUiState(selectedVehicleId = initialSelectedVehicleId))
     val state = mutableState.asStateFlow()
+    private val mutableMonthlyReport = MutableStateFlow<Pair<String, VehicleMonthlyReport>?>(null)
+    internal val monthlyReport = mutableMonthlyReport.asStateFlow()
 
     private val scope: CoroutineScope = coroutineScope ?: viewModelScope
     private var vehiclesJob: Job? = null
@@ -90,20 +97,35 @@ class HomeViewModel(
 
     fun todayDate(): LocalDate = JalaliDates.captureDefaultDate(clock)
 
+    internal val currentMonth = flow {
+        while (true) {
+            val now = clock.instant()
+            emit(JalaliDates.monthOf(JalaliDates.captureDefaultDate(Clock.fixed(now, clock.zone))))
+            delay(millisUntilTehranMidnight(now).coerceAtMost(3_600_000))
+        }
+    }.distinctUntilChanged()
+
     fun selectVehicle(vehicleId: String) {
         if (state.value.selectedVehicleId == vehicleId) return
         onPersistSelectedVehicleId(vehicleId)
-        mutableState.update {
-            it.copy(
-                selectedVehicleId = vehicleId,
-                selectedVehicleMileage = null,
-                mileageLoaded = false,
-                standaloneReadings = emptyList(),
-                odometerDraft = null,
-                odometerFeedbackRes = null,
-            )
-        }
+        mutableState.update { it.withVehicleSelection(vehicleId) }
         observeMileageForSelected()
+    }
+
+    private fun HomeUiState.withVehicleSelection(vehicleId: String?): HomeUiState =
+        if (selectedVehicleId == vehicleId) this
+        else copy(
+            selectedVehicleId = vehicleId,
+            selectedVehicleMileage = null,
+            mileageLoaded = false,
+            recentHistory = null,
+            standaloneReadings = emptyList(),
+            odometerDraft = null,
+            odometerFeedbackRes = null,
+        )
+
+    private inline fun updateSelectedVehicle(vehicleId: String, update: (HomeUiState) -> HomeUiState) {
+        mutableState.update { current -> if (current.selectedVehicleId == vehicleId) update(current) else current }
     }
 
     fun openOdometerSheet() {
@@ -306,11 +328,7 @@ class HomeViewModel(
                         val selectedId = current.selectedVehicleId?.takeIf { id -> list.any { it.id == id } }
                             ?: list.firstOrNull()?.id
                         resolvedId = selectedId
-                        current.copy(
-                            vehicles = list,
-                            selectedVehicleId = selectedId,
-                            listFailed = false,
-                        )
+                        current.withVehicleSelection(selectedId).copy(vehicles = list, listFailed = false)
                     }
                     resolvedId?.let(onPersistSelectedVehicleId)
                     observeMileageForSelected()
@@ -321,6 +339,7 @@ class HomeViewModel(
     private fun observeMileageForSelected() {
         val selectedId = state.value.selectedVehicle?.id
         mileageJob?.cancel()
+        mutableMonthlyReport.value = null
         if (selectedId == null) {
             mutableState.update {
                 it.copy(
@@ -337,30 +356,37 @@ class HomeViewModel(
                 ledgerRepository.observeCurrentMileage(selectedId)
                     .catch { failure ->
                         if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
-                        mutableState.update { it.copy(selectedVehicleMileage = null, mileageLoaded = true) }
+                        updateSelectedVehicle(selectedId) { it.copy(selectedVehicleMileage = null, mileageLoaded = true) }
                     }
                     .collect { mileage ->
-                        mutableState.update { it.copy(selectedVehicleMileage = mileage, mileageLoaded = true) }
+                        updateSelectedVehicle(selectedId) { it.copy(selectedVehicleMileage = mileage, mileageLoaded = true) }
                     }
             }
             launch {
                 ledgerRepository.observeHistoryForVehicle(selectedId)
                     .catch { failure ->
                         if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
-                        mutableState.update { it.copy(recentHistory = emptyList()) }
+                        updateSelectedVehicle(selectedId) { it.copy(recentHistory = emptyList()) }
                     }
                     .collect { history ->
-                        mutableState.update { it.copy(recentHistory = history.take(2)) }
+                        updateSelectedVehicle(selectedId) { it.copy(recentHistory = history.take(3)) }
                     }
+            }
+            launch {
+                ledgerRepository.observeMonthlyReport(selectedId)
+                    .catch { failure ->
+                        if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
+                    }
+                    .collect { report -> mutableMonthlyReport.value = selectedId to report }
             }
             launch {
                 ledgerRepository.observeStandaloneReadings(selectedId)
                     .catch { failure ->
                         if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
-                        mutableState.update { it.copy(standaloneReadings = emptyList()) }
+                        updateSelectedVehicle(selectedId) { it.copy(standaloneReadings = emptyList()) }
                     }
                     .collect { readings ->
-                        mutableState.update { it.copy(standaloneReadings = readings) }
+                        updateSelectedVehicle(selectedId) { it.copy(standaloneReadings = readings) }
                     }
             }
         }

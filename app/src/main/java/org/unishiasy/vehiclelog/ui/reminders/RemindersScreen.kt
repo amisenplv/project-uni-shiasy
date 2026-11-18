@@ -50,10 +50,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,23 +97,51 @@ internal fun RemindersScreen(
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
     val list = state.list.takeIf { state.observedVehicleId == vehicle.id }
-    val dueIds = list?.due.orEmpty().mapTo(hashSetOf()) { it.id }
+    val dueReminders = list?.due.orEmpty()
+    val dueIds = dueReminders.mapTo(hashSetOf()) { it.id }
+    val otherReminders = list?.rows.orEmpty().filterNot { it.id in dueIds }
+    // Header and notification options always occupy one item each.
+    val formIndex = 2 + dueReminders.size + if (dueReminders.isEmpty()) 0 else 1
     val listState = rememberLazyListState()
     val titleFocusRequester = remember { FocusRequester() }
-    val coroutineScope = rememberCoroutineScope()
     var pendingCancelId by rememberSaveable { mutableStateOf<String?>(null) }
+    var handledCreateRequest by remember { mutableIntStateOf(newReminderRequestCount) }
+    var formScrollRequest by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(newReminderRequestCount) {
-        if (newReminderRequestCount > 0) {
-            listState.animateScrollToItem(2)
-            titleFocusRequester.requestFocus()
+        if (newReminderRequestCount != handledCreateRequest) {
+            handledCreateRequest = newReminderRequestCount
+            formScrollRequest = true
         }
     }
 
     LaunchedEffect(state.lastCompletedForRecurring?.id) {
-        if (state.lastCompletedForRecurring != null) {
-            listState.animateScrollToItem(2)
+        if (state.lastCompletedForRecurring != null && formScrollRequest != true) {
+            formScrollRequest = false
         }
+    }
+
+    LaunchedEffect(formScrollRequest, formIndex) {
+        val requestFocus = formScrollRequest ?: return@LaunchedEffect
+        listState.animateScrollToItem(formIndex)
+        if (requestFocus) titleFocusRequester.requestFocus()
+        formScrollRequest = null
+    }
+
+    val reminderContent: @Composable (ReminderEntity, Boolean) -> Unit = { reminder, due ->
+        ReminderCard(
+            reminder = reminder,
+            due = due,
+            mileageMissing = list?.mileage == null,
+            currentMileage = list?.mileage,
+            state = state,
+            viewModel = viewModel,
+            onEdit = {
+                viewModel.startEditing(reminder)
+                formScrollRequest = true
+            },
+            onRequestCancel = { pendingCancelId = reminder.id },
+        )
     }
 
     pendingCancelId?.let { cancelId ->
@@ -222,23 +249,34 @@ internal fun RemindersScreen(
                 }
             }
 
+            if (dueReminders.isNotEmpty()) {
+                item(key = "due-heading") {
+                    Text(
+                        text = stringResource(R.string.reminders_due_section),
+                        modifier = Modifier.testTag("reminderDueSection").semantics { heading() },
+                        style = MaterialTheme.typography.titleLarge,
+                        color = semanticColors.onWarning,
+                    )
+                }
+                items(dueReminders, key = { it.id }) { reminder ->
+                    reminderContent(reminder, true)
+                }
+            }
+
             // Notification options slot
             item {
                 notificationOptions()
             }
 
             // New / Edit Reminder Form + Post-Complete Recurring Prompt
-            item {
+            item(key = "reminder-form") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     state.lastCompletedForRecurring?.let { completed ->
                         RecurringNextBanner(
                             completedTitle = completed.title,
                             onScheduleNext = {
                                 viewModel.prepareRecurringNext(completed)
-                                coroutineScope.launch {
-                                    listState.animateScrollToItem(2)
-                                    titleFocusRequester.requestFocus()
-                                }
+                                formScrollRequest = true
                             },
                             onDismiss = viewModel::dismissRecurringPrompt,
                         )
@@ -315,23 +353,8 @@ internal fun RemindersScreen(
                         }
                     }
                 }
-                else -> items(list.rows, key = { it.id }) { reminder ->
-                    ReminderCard(
-                        reminder = reminder,
-                        due = reminder.id in dueIds,
-                        mileageMissing = list.mileage == null,
-                        currentMileage = list.mileage,
-                        state = state,
-                        viewModel = viewModel,
-                        onEdit = {
-                            viewModel.startEditing(reminder)
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(2)
-                                titleFocusRequester.requestFocus()
-                            }
-                        },
-                        onRequestCancel = { pendingCancelId = reminder.id },
-                    )
+                else -> items(otherReminders, key = { it.id }) { reminder ->
+                    reminderContent(reminder, false)
                 }
             }
         }

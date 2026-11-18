@@ -2,6 +2,7 @@ package org.unishiasy.vehiclelog.ui.home
 
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.ParcelFileDescriptor
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
@@ -19,6 +20,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.ViewModelProvider
@@ -29,6 +34,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
+import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -183,29 +189,69 @@ class HomeScreenTest {
         compose.onNodeWithText(vehicleA.displayLabel).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.ledger_mileage_reference_empty)).assertIsDisplayed()
         compose.onNodeWithTag("homeQuickAdd").assertIsDisplayed()
-        compose.onNodeWithTag("homeOpenHistory").assertIsDisplayed()
-        compose.onNodeWithTag("homeOpenDashboard").assertIsDisplayed()
+        compose.onNodeWithTag("homeOpenHistory").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("homeOpenDashboard").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("homeVehicleSelector").assertDoesNotExist()
     }
 
     @Test
     fun multipleVehiclesSwitchesSelectionAndCurrentMileage() {
         prepare(seed = true, twoVehicles = true, preSeedReadings = true)
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeVehicleSelector").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeOpenVehicleSwitcher").fetchSemanticsNodes().isNotEmpty() }
 
-        compose.onNodeWithTag("homeSelectedVehicleName").assertTextContains(vehicleA.displayLabel)
-        compose.onNodeWithTag("homeMileageValue").assertTextContains("۱۲۰۰", substring = true)
+        compose.onNodeWithTag("homeSelectedVehicleName", useUnmergedTree = true).assertTextContains(vehicleA.displayLabel)
+        compose.onNodeWithTag("homeMileageValue", useUnmergedTree = true).assertTextContains("۱۲۰۰", substring = true)
 
-        compose.onNodeWithTag("homeVehicle:${vehicleB.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
+        compose.onNodeWithTag("switchVehicle:${vehicleB.id}").performClick()
         compose.waitUntil(5_000) { homeVm.state.value.selectedVehicle?.id == vehicleB.id }
 
-        compose.onNodeWithTag("homeSelectedVehicleName").assertTextContains(vehicleB.displayLabel)
-        compose.onNodeWithTag("homeMileageValue").assertTextContains("۲۵۰۰", substring = true)
+        compose.onNodeWithTag("homeSelectedVehicleName", useUnmergedTree = true).assertTextContains(vehicleB.displayLabel)
+        compose.onNodeWithTag("homeMileageValue", useUnmergedTree = true).assertTextContains("۲۵۰۰", substring = true)
 
-        compose.onNodeWithTag("homeVehicle:${vehicleA.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
+        compose.onNodeWithTag("switchVehicle:${vehicleA.id}").performClick()
         compose.waitUntil(5_000) { homeVm.state.value.selectedVehicle?.id == vehicleA.id }
-        compose.onNodeWithTag("homeSelectedVehicleName").assertTextContains(vehicleA.displayLabel)
-        compose.onNodeWithTag("homeMileageValue").assertTextContains("۱۲۰۰", substring = true)
+        compose.onNodeWithTag("homeSelectedVehicleName", useUnmergedTree = true).assertTextContains(vehicleA.displayLabel)
+        compose.onNodeWithTag("homeMileageValue", useUnmergedTree = true).assertTextContains("۱۲۰۰", substring = true)
+    }
+
+    @Test
+    fun homeShortcutsAndSaveWorkWithSoftwareKeyboard() {
+        prepare()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeQuickAdd").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("homeQuickAdd").assertIsDisplayed()
+        compose.onNodeWithTag("homeAddExpense").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("ledgerCategory").assertIsDisplayed()
+        compose.onNodeWithTag("ledgerVolume").assertDoesNotExist()
+        assertEquals("other", ledgerVm.state.value.draft?.category?.key)
+        instrumentation.runOnMainSync {
+            ledgerVm.back()
+            ledgerVm.back()
+        }
+
+        compose.onNodeWithTag("homeQuickAdd").assertIsDisplayed().performClick()
+        assertEquals("fuel", ledgerVm.state.value.draft?.category?.key)
+        compose.onNodeWithTag("ledgerVolume").assertIsDisplayed()
+        val amount = compose.onNodeWithTag("ledgerAmount").assertIsDisplayed()
+        amount.performTouchInput { click() }
+        compose.waitUntil(10_000) {
+            compose.runOnIdle {
+                ViewCompat.getRootWindowInsets(checkNotNull(activity).window.decorView)
+                    ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+            }
+        }
+        amount.performTextReplacement("۰")
+        val save = compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
+        val width = checkNotNull(activity).resources.configuration.screenWidthDp
+        val screenshot = File(checkNotNull(context.getExternalFilesDir(null)), "stage2-fuel-ime-${width}dp.png")
+        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        screenshot.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+        save.performTouchInput { click() }
+        compose.runOnIdle {
+            assertTrue(ledgerVm.state.value.fieldErrors.isNotEmpty())
+            assertEquals("۰", ledgerVm.state.value.draft?.amount)
+        }
     }
 
     @Test
@@ -223,14 +269,14 @@ class HomeScreenTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeScreen").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("homeScreen").assertIsDisplayed()
 
-        compose.onNodeWithTag("homeOpenHistory").performClick()
+        compose.onNodeWithTag("homeOpenHistory").performScrollTo().performClick()
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
 
         compose.onNodeWithText(context.getString(R.string.ledger_back)).performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeScreen").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("homeScreen").assertIsDisplayed()
 
-        compose.onNodeWithTag("homeOpenDashboard").performClick()
+        compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
         compose.onNodeWithTag("monthlyDashboard").assertIsDisplayed()
 
         compose.onNodeWithText(context.getString(R.string.dashboard_back)).performClick()
@@ -242,9 +288,10 @@ class HomeScreenTest {
     @Test
     fun activityRecreationPreservesSelectedVehicleContext() {
         prepare(seed = true, twoVehicles = true, preSeedReadings = true)
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeVehicleSelector").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeOpenVehicleSwitcher").fetchSemanticsNodes().isNotEmpty() }
 
-        compose.onNodeWithTag("homeVehicle:${vehicleB.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
+        compose.onNodeWithTag("switchVehicle:${vehicleB.id}").performClick()
         compose.waitUntil(5_000) { homeVm.state.value.selectedVehicle?.id == vehicleB.id }
         assertEquals(vehicleB.id, homeVm.state.value.selectedVehicle?.id)
 
@@ -262,8 +309,8 @@ class HomeScreenTest {
 
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeScreen").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(vehicleB.id, homeVm.state.value.selectedVehicle?.id)
-        compose.onNodeWithTag("homeSelectedVehicleName").assertTextContains(vehicleB.displayLabel)
-        compose.onNodeWithTag("homeMileageValue").assertTextContains("۲۵۰۰", substring = true)
+        compose.onNodeWithTag("homeSelectedVehicleName", useUnmergedTree = true).assertTextContains(vehicleB.displayLabel)
+        compose.onNodeWithTag("homeMileageValue", useUnmergedTree = true).assertTextContains("۲۵۰۰", substring = true)
     }
 
     @Test
@@ -279,16 +326,16 @@ class HomeScreenTest {
         }
         compose.onNodeWithTag("ledgerMileage").performScrollTo().performTextReplacement("۱۲۵۰")
         compose.onNodeWithTag("ledgerDate").performScrollTo().performTextReplacement("۱۴۰۵/۰۱/۰۱")
-        compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed().performClick()
 
         compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.ledger_saved)).fetchSemanticsNodes().isNotEmpty() }
 
         compose.onNodeWithText(context.getString(R.string.ledger_back)).performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeScreen").fetchSemanticsNodes().isNotEmpty() }
 
-        compose.onNodeWithTag("homeMileageValue").assertTextContains("۱۲۵۰", substring = true)
+        compose.onNodeWithTag("homeMileageValue", useUnmergedTree = true).assertTextContains("۱۲۵۰", substring = true)
 
-        compose.onNodeWithTag("homeOpenDashboard").performClick()
+        compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("monthlyDashboard").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("dashboardTotal").assertTextContains("۱۵٬۰۰۰ تومان")
     }
@@ -333,7 +380,8 @@ class HomeScreenTest {
         runBlocking { ledgerRepo.createStandaloneReading(UUID.randomUUID(), OdometerInput(vehicleA.id, "2026-03-21", 1200)) }
         awaitTag("homeDue:${mileage.id}")
 
-        compose.onNodeWithTag("homeVehicle:${vehicleB.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
+        compose.onNodeWithTag("switchVehicle:${vehicleB.id}").performClick()
         compose.waitUntil(5_000) { reminderVm.state.value.observedVehicleId == vehicleB.id && reminderVm.state.value.list != null }
         compose.onNodeWithTag("homeDue:${date.id}").assertDoesNotExist()
         compose.onNodeWithTag("homeDue:${mileage.id}").assertDoesNotExist()
@@ -343,7 +391,8 @@ class HomeScreenTest {
         )
         clickReminder("remindersBack")
 
-        compose.onNodeWithTag("homeVehicle:${vehicleA.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
+        compose.onNodeWithTag("switchVehicle:${vehicleA.id}").performClick()
         awaitTag("homeDue:${mileage.id}")
         openReminders()
         clickReminder("reminderComplete:${date.id}")
