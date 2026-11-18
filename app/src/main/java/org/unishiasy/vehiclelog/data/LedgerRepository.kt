@@ -60,6 +60,9 @@ class LedgerRepository internal constructor(private val database: VehicleDatabas
 
     fun observeCurrentMileage(vehicleId: String): Flow<Long?> = readings.observeCurrentMileage(vehicleId)
 
+    fun observeStandaloneReadings(vehicleId: String): Flow<List<OdometerReadingEntity>> =
+        readings.observeStandaloneForVehicle(vehicleId)
+
     suspend fun create(
         id: UUID,
         createdAtEpochMillis: Long,

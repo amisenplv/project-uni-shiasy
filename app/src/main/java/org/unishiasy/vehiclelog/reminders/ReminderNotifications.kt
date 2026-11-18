@@ -55,6 +55,17 @@ internal class ReminderNotifications(
         changed
     }
 
+    suspend fun updateAndResetDelivery(id: UUID, update: suspend () -> Int): Int = mutex.withLock {
+        val changed = update()
+        if (changed == 1) {
+            channels.cancel(id.toString())
+            withContext(Dispatchers.IO + NonCancellable) {
+                runCatching { delivery.clear(id) }
+            }
+        }
+        changed
+    }
+
     // Serialize the commit and marker reset with notification posting.
     suspend fun restoreAndReset(
         reconcileSchedule: () -> Unit,

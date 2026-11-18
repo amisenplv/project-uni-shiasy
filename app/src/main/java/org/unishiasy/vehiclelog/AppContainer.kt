@@ -35,6 +35,7 @@ class AppContainer(context: Context) {
     }
 
     val appearancePreferences by lazy { org.unishiasy.vehiclelog.ui.settings.AppearancePreferences(applicationContext) }
+    val backupPreferences by lazy { org.unishiasy.vehiclelog.ui.settings.BackupPreferences(applicationContext) }
     val selectedVehiclePreferences by lazy { org.unishiasy.vehiclelog.ui.home.SelectedVehiclePreferences(applicationContext) }
     val vehicleRepository by lazy { VehicleRepository(database.vehicleDao()) }
     val ledgerRepository by lazy { LedgerRepository(database) }
@@ -44,6 +45,7 @@ class AppContainer(context: Context) {
             ledgerRepository,
             onDateCreated = { if (reminderNotifications.optedIn()) reconcileReminderSchedule() },
             finishWithCleanup = { id, finish -> reminderNotifications.finishAndCancel(id, finish) },
+            updateWithCleanup = { id, update -> reminderNotifications.updateAndResetDelivery(id, update) },
         )
     }
     internal val reminderNotifications: ReminderNotifications by lazy {

@@ -177,8 +177,13 @@ class AppJourneyRobolectricTest {
         }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeRecent:$entryId").fetchSemanticsNodes().isNotEmpty() }
 
-        // Direct click on Home recent entry opens that entry directly for editing
+        // Direct click on Home recent entry opens read-only EntryDetailSheet, then Edit enters form
         compose.onNodeWithTag("homeRecent:$entryId").performScrollTo().performClick()
+        compose.waitUntil(5_000) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            compose.onAllNodesWithTag("entryDetailEdit").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("entryDetailEdit").performClick()
         compose.waitUntil(5_000) {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
             ledgerVm.state.value.draft?.id == entryId

@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -109,6 +110,7 @@ import org.unishiasy.vehiclelog.ui.home.HomeViewModel
 import org.unishiasy.vehiclelog.ui.reminders.RemindersScreen
 import org.unishiasy.vehiclelog.ui.reminders.RemindersViewModel
 import org.unishiasy.vehiclelog.ui.settings.AppearancePreferences
+import org.unishiasy.vehiclelog.ui.settings.BackupPreferences
 import org.unishiasy.vehiclelog.ui.settings.BackupSettingsScreen
 import org.unishiasy.vehiclelog.ui.settings.BackupSettingsViewModel
 import org.unishiasy.vehiclelog.ui.settings.CloudSettingsViewModel
@@ -126,6 +128,7 @@ internal fun LedgerHost(
     backupSettings: BackupSettingsViewModel? = null,
     cloudSettings: CloudSettingsViewModel? = null,
     appearancePreferences: AppearancePreferences? = null,
+    backupPreferences: BackupPreferences? = null,
     reminderNotificationOptions: @Composable () -> Unit = {},
 ) {
     if (backupSettings != null) {
@@ -137,6 +140,7 @@ internal fun LedgerHost(
                 cloudSettings = cloudSettings,
                 appearancePreferences = appearancePreferences,
                 notificationOptions = reminderNotificationOptions,
+                backupPreferences = backupPreferences,
             )
             return
         }
@@ -251,6 +255,18 @@ internal fun LedgerHost(
             }
         }
 
+        state.inspectingEntryId?.let { inspectedId ->
+            val inspected = state.entries?.firstOrNull { it.id == inspectedId }
+            if (inspected != null) {
+                EntryDetailSheet(
+                    entry = inspected,
+                    onEdit = { ledger.editFromDetail(inspected.id) },
+                    onDelete = { ledger.deleteFromDetail(inspected.id) },
+                    onDismiss = ledger::dismissEntryDetail,
+                )
+            }
+        }
+
         state.entryPendingDeletion?.let {
             DeleteConfirmationDialog(
                 deleting = state.deleting,
@@ -284,6 +300,15 @@ internal fun LedgerHost(
             }
         }
         val homeReminders = reminderState?.takeIf { it.observedVehicleId == homeState?.selectedVehicle?.id }
+        var staleBackupDismissed by rememberSaveable { mutableStateOf(false) }
+        val lastBackupEpoch by (backupPreferences?.lastExportEpochMillis ?: remember {
+            kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
+        }).collectAsStateWithLifecycle()
+        val hasHomeEntries = homeState?.recentHistory?.isNotEmpty() == true
+        val showStaleBackupBanner = backupPreferences != null &&
+            !staleBackupDismissed &&
+            hasHomeEntries &&
+            (lastBackupEpoch == null || backupPreferences.isBackupStale())
         HomeScreen(
             viewModel = home,
             onQuickAdd = ledger::openQuickAdd,
@@ -301,6 +326,8 @@ internal fun LedgerHost(
             onOpenEntry = ledger::openEntryFromHome,
             showVehicleSavedBanner = vehicleSaved,
             onDismissVehicleSaved = vehicles::clearSaveResult,
+            showStaleBackupBanner = showStaleBackupBanner,
+            onDismissStaleBackup = { staleBackupDismissed = true },
             bottomBar = dockComposable,
         )
     } else {
@@ -403,6 +430,87 @@ private fun HistoryView(
                 )
             }
 
+            // Search & Category Filter Controls (above LazyColumn so list item indices remain stable)
+            var searchQuery by rememberSaveable(vehicle.id) { mutableStateOf("") }
+            var selectedCategoryKey by rememberSaveable(vehicle.id) { mutableStateOf<String?>(null) }
+            val filterState = HistoryFilterState(query = searchQuery, categoryKey = selectedCategoryKey)
+            val categoryLabels = EntryCategory.entries.associate { it.key to stringResource(it.label) }
+            val fallbackGroupLabel = stringResource(R.string.history_month_other)
+            val monthGroups = remember(state.entries, searchQuery, selectedCategoryKey, categoryLabels, fallbackGroupLabel) {
+                state.entries?.let { entries ->
+                    filterAndGroupHistory(entries, filterState, categoryLabels, fallbackGroupLabel)
+                }.orEmpty()
+            }
+            val displayItems = remember(monthGroups) {
+                monthGroups.flatMap { group ->
+                    group.entries.mapIndexed { idx, entry ->
+                        Triple(
+                            entry,
+                            if (idx == 0) group.monthKey else null,
+                            if (idx == 0) group.headerLabel else null,
+                        )
+                    }
+                }
+            }
+
+            if (state.entries != null && state.entries.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth().testTag("historySearchInput"),
+                        placeholder = { Text(stringResource(R.string.history_search_hint)) },
+                        singleLine = true,
+                        shape = VehicleLogShapes.medium,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.ContentOrRtl),
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(48.dp).testTag("historySearchClear"),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_close),
+                                        contentDescription = stringResource(R.string.history_search_clear),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        } else null,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = selectedCategoryKey == null,
+                            onClick = { selectedCategoryKey = null },
+                            modifier = Modifier.heightIn(min = 48.dp).testTag("historyFilterAll"),
+                            shape = VehicleLogShapes.medium,
+                            label = { Text(stringResource(R.string.history_filter_all)) },
+                        )
+                        for (cat in EntryCategory.entries) {
+                            FilterChip(
+                                selected = selectedCategoryKey == cat.key,
+                                onClick = {
+                                    selectedCategoryKey = if (selectedCategoryKey == cat.key) null else cat.key
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp).testTag("historyFilter:${cat.key}"),
+                                shape = VehicleLogShapes.medium,
+                                label = { Text(stringResource(cat.label)) },
+                            )
+                        }
+                    }
+                }
+            }
+
             // History Records Content with Day Rail
             LazyColumn(
                 state = listState,
@@ -483,6 +591,37 @@ private fun HistoryView(
                             }
                         }
                     }
+                    displayItems.isEmpty() -> {
+                        item {
+                            OutlinedCard(
+                                modifier = Modifier.fillMaxWidth().testTag("historyFilterEmpty"),
+                                shape = VehicleLogShapes.medium,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.history_filter_empty),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            searchQuery = ""
+                                            selectedCategoryKey = null
+                                        },
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("historyClearFilters"),
+                                        shape = VehicleLogShapes.medium,
+                                    ) {
+                                        Text(stringResource(R.string.history_filter_reset))
+                                    }
+                                }
+                            }
+                        }
+                    }
                     else -> {
                         if (state.openingEntry) {
                             item {
@@ -493,21 +632,24 @@ private fun HistoryView(
                             }
                         }
                         items(
-                            items = state.entries,
-                            key = { it.id },
-                        ) { entry ->
-                            HistoryDayRailRow(entry, state, ledger)
+                            items = displayItems,
+                            key = { it.first.id },
+                        ) { (entry, monthKey, monthHeader) ->
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (monthHeader != null && monthKey != null) {
+                                    Text(
+                                        text = monthHeader,
+                                        modifier = Modifier
+                                            .padding(top = 4.dp)
+                                            .semantics { heading() }
+                                            .testTag("historyMonthHeader:$monthKey"),
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                HistoryDayRailRow(entry, state, ledger)
+                            }
                         }
-                    }
-                }
-
-                item {
-                    TextButton(
-                        onClick = ledger::back,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        enabled = !state.openingEntry && !state.deleting,
-                    ) {
-                        Text(stringResource(R.string.ledger_back))
                     }
                 }
             }
@@ -576,7 +718,7 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
         Card(
             modifier = Modifier
                 .weight(1f)
-                .clickable { ledger.editEntry(entry.id) }
+                .clickable { ledger.inspectEntry(entry.id) }
                 .testTag("ledgerRecent:${entry.id}"),
             shape = VehicleLogShapes.medium,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

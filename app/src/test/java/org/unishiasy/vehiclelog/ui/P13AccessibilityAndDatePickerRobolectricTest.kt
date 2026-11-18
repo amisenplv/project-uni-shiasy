@@ -108,15 +108,19 @@ class P13AccessibilityAndDatePickerRobolectricTest {
         mountHost(fontScale = 1.5f)
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeQuickAdd").fetchSemanticsNodes().isNotEmpty() }
 
+        compose.onNodeWithTag("homeAddExpense").performScrollTo()
+        compose.waitForIdle()
         val fuelBounds = compose.onNodeWithTag("homeQuickAdd").getUnclippedBoundsInRoot()
-        val expenseBounds = compose.onNodeWithTag("homeAddExpense").performScrollTo().getUnclippedBoundsInRoot()
+        val expenseBounds = compose.onNodeWithTag("homeAddExpense").getUnclippedBoundsInRoot()
         assertTrue("Expected stacked action buttons at 1.5x fontScale", expenseBounds.top >= fuelBounds.bottom)
 
         compose.onNodeWithTag("homeQuickAdd").performScrollTo().performClick()
         compose.waitForIdle()
 
+        compose.onNodeWithTag("ledgerVolume").performScrollTo()
+        compose.waitForIdle()
         val amountBounds = compose.onNodeWithTag("ledgerAmount").getUnclippedBoundsInRoot()
-        val volumeBounds = compose.onNodeWithTag("ledgerVolume").performScrollTo().getUnclippedBoundsInRoot()
+        val volumeBounds = compose.onNodeWithTag("ledgerVolume").getUnclippedBoundsInRoot()
         assertTrue("Expected stacked fuel inputs at 1.5x fontScale", volumeBounds.top >= amountBounds.bottom)
 
         // Quick chip Yesterday selects 1404/12/29

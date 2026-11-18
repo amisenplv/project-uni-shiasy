@@ -37,6 +37,7 @@ internal data class LedgerUiState(
     val deleting: Boolean = false,
     val lastActionWasDelete: Boolean = false,
     val dashboard: MonthlyDashboardState? = null,
+    val inspectingEntryId: String? = null,
 ) {
     val recent: List<HistoryEntry>? get() = entries
 }
@@ -95,9 +96,28 @@ internal class LedgerViewModel(
 
     fun openEntryFromHome(vehicle: VehicleEntity, entryId: String) {
         if (state.value.vehicle != null) return
-        setState(LedgerUiState(vehicle = vehicle))
+        setState(LedgerUiState(vehicle = vehicle, inspectingEntryId = entryId))
         observe(vehicle.id)
-        editEntry(entryId)
+    }
+
+    fun inspectEntry(id: String) {
+        val current = state.value
+        if (current.draft != null || current.openingEntry || current.deleting) return
+        updateState { it.copy(inspectingEntryId = id, result = null, lastActionWasDelete = false) }
+    }
+
+    fun dismissEntryDetail() {
+        updateState { it.copy(inspectingEntryId = null) }
+    }
+
+    fun editFromDetail(id: String) {
+        updateState { it.copy(inspectingEntryId = null) }
+        editEntry(id)
+    }
+
+    fun deleteFromDetail(id: String) {
+        updateState { it.copy(inspectingEntryId = null) }
+        requestDelete(id)
     }
 
     fun retryList() {
@@ -241,6 +261,10 @@ internal class LedgerViewModel(
         if (current.saving || current.openingEntry || current.deleting) return
         if (current.entryPendingDeletion != null) {
             cancelDelete()
+            return
+        }
+        if (current.inspectingEntryId != null) {
+            dismissEntryDetail()
             return
         }
         if (current.draft != null) {

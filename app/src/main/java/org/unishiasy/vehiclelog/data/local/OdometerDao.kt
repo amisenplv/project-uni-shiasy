@@ -22,6 +22,13 @@ internal interface OdometerDao {
     fun observeCurrentMileage(vehicleId: String): Flow<Long?>
 
     @Query("""
+        SELECT * FROM odometer_readings
+        WHERE vehicleId = :vehicleId AND entryId IS NULL
+        ORDER BY occurredOn DESC, kilometers DESC, id
+    """)
+    fun observeStandaloneForVehicle(vehicleId: String): Flow<List<OdometerReadingEntity>>
+
+    @Query("""
         SELECT MAX(kilometers) FROM odometer_readings
         WHERE vehicleId = :vehicleId AND occurredOn < :day AND id != :excludedId
     """)

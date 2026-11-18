@@ -41,14 +41,14 @@ fi
 [[ $version_name =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]] ||
     fail 'VERSION_NAME must be 1–64 ASCII letters, digits, or . _ + -, starting with a letter or digit.'
 
-: "${JAVA_HOME:?Set JAVA_HOME to a local JDK 17 installation}"
+: "${JAVA_HOME:?Set JAVA_HOME to a local JDK 17 or JDK 21 installation}"
 : "${ANDROID_HOME:?Set ANDROID_HOME to the local Android SDK}"
 [[ $JAVA_HOME == /* && $ANDROID_HOME == /* ]] || fail 'Use absolute paths for JAVA_HOME and ANDROID_HOME.'
 [[ -x "$JAVA_HOME/bin/java" && -x "$JAVA_HOME/bin/javac" && -x "$JAVA_HOME/bin/keytool" ]] ||
     fail 'JAVA_HOME must point to a complete JDK.'
 case "$("$JAVA_HOME/bin/javac" -version 2>&1)" in
-    'javac 17'|'javac 17.'*) ;;
-    *) fail 'The release workflow requires JDK 17.' ;;
+    'javac 17'|'javac 17.'*|'javac 21'|'javac 21.'*) ;;
+    *) fail 'The release workflow requires JDK 17 or JDK 21.' ;;
 esac
 
 platform="$ANDROID_HOME/platforms/android-36"

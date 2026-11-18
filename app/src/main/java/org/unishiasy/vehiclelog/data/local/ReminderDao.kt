@@ -18,4 +18,13 @@ internal interface ReminderDao {
 
     @Query("UPDATE reminders SET state = :state WHERE vehicleId = :vehicleId AND id = :id AND state = 'active'")
     suspend fun finish(vehicleId: String, id: String, state: String): Int
+
+    @Query("UPDATE reminders SET title = :title, dueOn = :dueOn, dueKilometers = :dueKilometers WHERE vehicleId = :vehicleId AND id = :id AND state = 'active'")
+    suspend fun updateActive(
+        vehicleId: String,
+        id: String,
+        title: String,
+        dueOn: String?,
+        dueKilometers: Long?,
+    ): Int
 }

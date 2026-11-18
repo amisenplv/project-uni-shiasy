@@ -4,6 +4,9 @@ import android.database.sqlite.SQLiteException
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import java.time.Clock
+import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -12,9 +15,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.unishiasy.vehiclelog.R
+import org.unishiasy.vehiclelog.data.EntrySaveResult
 import org.unishiasy.vehiclelog.data.LedgerRepository
+import org.unishiasy.vehiclelog.data.OdometerInput
 import org.unishiasy.vehiclelog.data.VehicleRepository
+import org.unishiasy.vehiclelog.data.local.OdometerReadingEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
+import org.unishiasy.vehiclelog.domain.JalaliDates
+import org.unishiasy.vehiclelog.domain.normalizeInputDigits
+import org.unishiasy.vehiclelog.domain.withPersianDigits
+
+data class OdometerDraft(
+    val vehicleId: String,
+    val id: UUID = UUID.randomUUID(),
+    val editing: Boolean = false,
+    val kilometers: String = "",
+    val date: String = "",
+    val saving: Boolean = false,
+    val error: Int? = null,
+    val kmError: Int? = null,
+    val dateError: Int? = null,
+    val pendingDeleteId: String? = null,
+)
 
 data class HomeUiState(
     val vehicles: List<VehicleEntity>? = null,
@@ -23,6 +46,9 @@ data class HomeUiState(
     val mileageLoaded: Boolean = false,
     val listFailed: Boolean = false,
     val recentHistory: List<org.unishiasy.vehiclelog.data.local.HistoryEntry>? = null,
+    val standaloneReadings: List<OdometerReadingEntity> = emptyList(),
+    val odometerDraft: OdometerDraft? = null,
+    val odometerFeedbackRes: Int? = null,
 ) {
     val selectedVehicle: VehicleEntity?
         get() = vehicles?.firstOrNull { it.id == selectedVehicleId }
@@ -49,6 +75,7 @@ class HomeViewModel(
     coroutineScope: CoroutineScope? = null,
     initialSelectedVehicleId: String? = null,
     private val onPersistSelectedVehicleId: (String) -> Unit = {},
+    private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HomeUiState(selectedVehicleId = initialSelectedVehicleId))
     val state = mutableState.asStateFlow()
@@ -61,6 +88,8 @@ class HomeViewModel(
         observeVehicles()
     }
 
+    fun todayDate(): LocalDate = JalaliDates.captureDefaultDate(clock)
+
     fun selectVehicle(vehicleId: String) {
         if (state.value.selectedVehicleId == vehicleId) return
         onPersistSelectedVehicleId(vehicleId)
@@ -69,9 +98,193 @@ class HomeViewModel(
                 selectedVehicleId = vehicleId,
                 selectedVehicleMileage = null,
                 mileageLoaded = false,
+                standaloneReadings = emptyList(),
+                odometerDraft = null,
+                odometerFeedbackRes = null,
             )
         }
         observeMileageForSelected()
+    }
+
+    fun openOdometerSheet() {
+        val selectedId = state.value.selectedVehicle?.id ?: return
+        val today = todayDate()
+        val defaultJalali = JalaliDates.formatJalaliInput(today.toString()).orEmpty()
+        mutableState.update {
+            it.copy(
+                odometerFeedbackRes = null,
+                odometerDraft = OdometerDraft(
+                    vehicleId = selectedId,
+                    date = defaultJalali,
+                ),
+            )
+        }
+    }
+
+    fun closeOdometerSheet() {
+        val draft = state.value.odometerDraft ?: return
+        if (draft.saving) return
+        mutableState.update { it.copy(odometerDraft = null) }
+    }
+
+    fun dismissOdometerFeedback() {
+        mutableState.update { it.copy(odometerFeedbackRes = null) }
+    }
+
+    fun changeOdometerKilometers(value: String) {
+        mutableState.update { current ->
+            val draft = current.odometerDraft ?: return@update current
+            if (draft.saving) return@update current
+            current.copy(
+                odometerDraft = draft.copy(
+                    kilometers = value,
+                    kmError = null,
+                    error = null,
+                ),
+            )
+        }
+    }
+
+    fun changeOdometerDate(value: String) {
+        mutableState.update { current ->
+            val draft = current.odometerDraft ?: return@update current
+            if (draft.saving) return@update current
+            current.copy(
+                odometerDraft = draft.copy(
+                    date = value,
+                    dateError = null,
+                    error = null,
+                ),
+            )
+        }
+    }
+
+    fun editStandaloneReading(reading: OdometerReadingEntity) {
+        val uuid = runCatching { UUID.fromString(reading.id) }.getOrNull() ?: return
+        val jalali = JalaliDates.formatJalaliInput(reading.occurredOn) ?: reading.occurredOn
+        mutableState.update { current ->
+            current.copy(
+                odometerDraft = OdometerDraft(
+                    vehicleId = reading.vehicleId,
+                    id = uuid,
+                    editing = true,
+                    kilometers = reading.kilometers.toString().withPersianDigits(),
+                    date = jalali,
+                ),
+            )
+        }
+    }
+
+    fun requestDeleteStandaloneReading(readingId: String) {
+        mutableState.update { current ->
+            val draft = current.odometerDraft ?: return@update current
+            if (draft.saving) return@update current
+            current.copy(odometerDraft = draft.copy(pendingDeleteId = readingId, error = null))
+        }
+    }
+
+    fun cancelDeleteStandaloneReading() {
+        mutableState.update { current ->
+            val draft = current.odometerDraft ?: return@update current
+            if (draft.saving) return@update current
+            current.copy(odometerDraft = draft.copy(pendingDeleteId = null))
+        }
+    }
+
+    fun confirmDeleteStandaloneReading() {
+        val current = state.value
+        val draft = current.odometerDraft ?: return
+        val deleteId = draft.pendingDeleteId ?: return
+        if (draft.saving) return
+        val uuid = runCatching { UUID.fromString(deleteId) }.getOrNull() ?: return
+        mutableState.update { it.copy(odometerDraft = draft.copy(saving = true, pendingDeleteId = null, error = null)) }
+        scope.launch {
+            val result = ledgerRepository.deleteStandaloneReading(uuid)
+            mutableState.update { st ->
+                val curDraft = st.odometerDraft
+                if (result == EntrySaveResult.Saved) {
+                    val resetEditing = curDraft != null && curDraft.id == uuid
+                    st.copy(
+                        odometerFeedbackRes = R.string.odometer_deleted,
+                        odometerDraft = if (resetEditing) {
+                            OdometerDraft(
+                                vehicleId = curDraft.vehicleId,
+                                date = JalaliDates.formatJalaliInput(todayDate().toString()).orEmpty(),
+                            )
+                        } else {
+                            curDraft?.copy(saving = false, pendingDeleteId = null)
+                        },
+                    )
+                } else {
+                    st.copy(
+                        odometerDraft = curDraft?.copy(
+                            saving = false,
+                            error = R.string.ledger_storage_failure,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun saveStandaloneOdometer() {
+        val draft = state.value.odometerDraft ?: return
+        if (draft.saving) return
+        val normalizedKm = draft.kilometers.trim().normalizeInputDigits()
+        val km = normalizedKm.takeIf { it.isNotEmpty() && it.all { ch -> ch in '0'..'9' } }?.toLongOrNull()
+        val gregorian = JalaliDates.parseJalali(draft.date)
+        val kmError = if (km == null) R.string.ledger_mileage_invalid else null
+        val dateError = if (gregorian == null) R.string.ledger_date_invalid else null
+        if (kmError != null || dateError != null || km == null || gregorian == null) {
+            mutableState.update {
+                it.copy(odometerDraft = draft.copy(kmError = kmError, dateError = dateError))
+            }
+            return
+        }
+        mutableState.update {
+            it.copy(odometerDraft = draft.copy(saving = true, kmError = null, dateError = null, error = null))
+        }
+        scope.launch {
+            val input = OdometerInput(draft.vehicleId, gregorian, km)
+            val result = if (draft.editing) {
+                ledgerRepository.updateStandaloneReading(draft.id, input)
+            } else {
+                ledgerRepository.createStandaloneReading(draft.id, input)
+            }
+            mutableState.update { current ->
+                when (result) {
+                    EntrySaveResult.Saved -> current.copy(
+                        odometerDraft = null,
+                        odometerFeedbackRes = R.string.odometer_saved,
+                    )
+                    EntrySaveResult.MileageConflict -> current.copy(
+                        odometerDraft = current.odometerDraft?.copy(
+                            saving = false,
+                            kmError = R.string.ledger_mileage_conflict,
+                            error = R.string.ledger_mileage_conflict,
+                        ),
+                    )
+                    EntrySaveResult.InvalidKilometers -> current.copy(
+                        odometerDraft = current.odometerDraft?.copy(
+                            saving = false,
+                            kmError = R.string.ledger_mileage_invalid,
+                        ),
+                    )
+                    EntrySaveResult.InvalidOccurrenceDate -> current.copy(
+                        odometerDraft = current.odometerDraft?.copy(
+                            saving = false,
+                            dateError = R.string.ledger_date_invalid,
+                        ),
+                    )
+                    else -> current.copy(
+                        odometerDraft = current.odometerDraft?.copy(
+                            saving = false,
+                            error = R.string.ledger_storage_failure,
+                        ),
+                    )
+                }
+            }
+        }
     }
 
     fun retry() {
@@ -109,7 +322,14 @@ class HomeViewModel(
         val selectedId = state.value.selectedVehicle?.id
         mileageJob?.cancel()
         if (selectedId == null) {
-            mutableState.update { it.copy(selectedVehicleMileage = null, mileageLoaded = true, recentHistory = emptyList()) }
+            mutableState.update {
+                it.copy(
+                    selectedVehicleMileage = null,
+                    mileageLoaded = true,
+                    recentHistory = emptyList(),
+                    standaloneReadings = emptyList(),
+                )
+            }
             return
         }
         mileageJob = scope.launch {
@@ -131,6 +351,16 @@ class HomeViewModel(
                     }
                     .collect { history ->
                         mutableState.update { it.copy(recentHistory = history.take(2)) }
+                    }
+            }
+            launch {
+                ledgerRepository.observeStandaloneReadings(selectedId)
+                    .catch { failure ->
+                        if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
+                        mutableState.update { it.copy(standaloneReadings = emptyList()) }
+                    }
+                    .collect { readings ->
+                        mutableState.update { it.copy(standaloneReadings = readings) }
                     }
             }
         }

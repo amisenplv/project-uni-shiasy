@@ -72,6 +72,7 @@ import org.unishiasy.vehiclelog.domain.withPersianDigits
 import org.unishiasy.vehiclelog.ui.components.NoticeBanner
 import org.unishiasy.vehiclelog.ui.components.NoticeTone
 import org.unishiasy.vehiclelog.ui.components.VehicleSwitcherSheet
+import org.unishiasy.vehiclelog.ui.ledger.OdometerSheet
 import org.unishiasy.vehiclelog.ui.reminders.ReminderThresholdText
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
@@ -95,6 +96,8 @@ internal fun HomeScreen(
     onOpenEntry: ((VehicleEntity, String) -> Unit)? = null,
     showVehicleSavedBanner: Boolean = false,
     onDismissVehicleSaved: () -> Unit = {},
+    showStaleBackupBanner: Boolean = false,
+    onDismissStaleBackup: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -108,6 +111,30 @@ internal fun HomeScreen(
             delay(3_500)
             onDismissVehicleSaved()
         }
+    }
+
+    LaunchedEffect(state.odometerFeedbackRes) {
+        if (state.odometerFeedbackRes != null) {
+            delay(3_500)
+            viewModel.dismissOdometerFeedback()
+        }
+    }
+
+    state.odometerDraft?.let { draft ->
+        OdometerSheet(
+            draft = draft,
+            standaloneReadings = state.standaloneReadings,
+            currentMileage = state.selectedVehicleMileage,
+            todayDate = viewModel.todayDate(),
+            onKilometersChange = viewModel::changeOdometerKilometers,
+            onDateChange = viewModel::changeOdometerDate,
+            onSave = viewModel::saveStandaloneOdometer,
+            onEditReading = viewModel::editStandaloneReading,
+            onRequestDeleteReading = viewModel::requestDeleteStandaloneReading,
+            onConfirmDeleteReading = viewModel::confirmDeleteStandaloneReading,
+            onCancelDeleteReading = viewModel::cancelDeleteStandaloneReading,
+            onDismiss = viewModel::closeOdometerSheet,
+        )
     }
 
     if (showVehicleSwitcher && selectedVehicle != null) {
@@ -191,6 +218,59 @@ internal fun HomeScreen(
                     tone = NoticeTone.Success,
                     modifier = Modifier.testTag("homeVehicleSavedBanner"),
                 )
+            }
+
+            state.odometerFeedbackRes?.let { feedbackRes ->
+                NoticeBanner(
+                    title = stringResource(feedbackRes),
+                    tone = NoticeTone.Success,
+                    modifier = Modifier.testTag("homeOdometerSavedBanner"),
+                )
+            }
+
+            if (showStaleBackupBanner && onOpenSettings != null) {
+                OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("homeStaleBackupBanner"),
+                    shape = VehicleLogShapes.large,
+                    colors = CardDefaults.outlinedCardColors(containerColor = semanticColors.warningSurface),
+                    border = BorderStroke(1.dp, semanticColors.warningEdge),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.backup_stale_banner_title),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = semanticColors.onWarning,
+                        )
+                        Text(
+                            text = stringResource(R.string.backup_stale_banner_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = onOpenSettings,
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("homeStaleBackupAction"),
+                                shape = VehicleLogShapes.medium,
+                            ) {
+                                Text(stringResource(R.string.backup_stale_action))
+                            }
+                            TextButton(
+                                onClick = onDismissStaleBackup,
+                                modifier = Modifier.heightIn(min = 48.dp).testTag("homeStaleBackupDismiss"),
+                            ) {
+                                Text(stringResource(R.string.backup_stale_dismiss))
+                            }
+                        }
+                    }
+                }
             }
 
             // Multi-Vehicle Selector Cards (Visible when multiple vehicles are registered)
@@ -390,7 +470,7 @@ internal fun HomeScreen(
                                 .padding(horizontal = 14.dp, vertical = 12.dp)
                                 .testTag("homeCurrentMileage"),
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
                                     stringResource(R.string.home_current_mileage),
                                     style = MaterialTheme.typography.labelMedium,
@@ -415,6 +495,28 @@ internal fun HomeScreen(
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = semanticColors.odometerMuted,
                                         modifier = Modifier.testTag("homeMileageValue"),
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = viewModel::openOdometerSheet,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
+                                        .testTag("homeUpdateMileage"),
+                                    shape = VehicleLogShapes.small,
+                                    border = BorderStroke(1.dp, semanticColors.odometerMuted.copy(alpha = 0.5f)),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_edit),
+                                        contentDescription = null,
+                                        tint = semanticColors.onOdometer,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(R.string.home_update_mileage),
+                                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                        color = semanticColors.onOdometer,
                                     )
                                 }
                             }

@@ -70,7 +70,12 @@ class MainActivity : ComponentActivity() {
         viewModelFactory {
             initializer {
                 val app = application as VehicleLedgerApplication
-                BackupSettingsViewModel(app.container.backupRepository, app.contentResolver, createSavedStateHandle())
+                BackupSettingsViewModel(
+                    repository = app.container.backupRepository,
+                    resolver = app.contentResolver,
+                    savedStateHandle = createSavedStateHandle(),
+                    onExportRecorded = { app.container.backupPreferences.recordExport() },
+                )
             }
         }
     }
@@ -111,6 +116,7 @@ class MainActivity : ComponentActivity() {
                         backupSettings = backupSettings,
                         cloudSettings = cloudSettings,
                         appearancePreferences = container.appearancePreferences,
+                        backupPreferences = container.backupPreferences,
                     ) {
                         ReminderNotificationOptions(container.reminderNotifications, container::reconcileReminderSchedule)
                     }

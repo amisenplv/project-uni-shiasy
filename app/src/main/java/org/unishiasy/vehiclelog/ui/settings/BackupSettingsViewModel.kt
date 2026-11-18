@@ -24,6 +24,7 @@ internal class BackupSettingsViewModel(
     private val repository: BackupRepository,
     private val resolver: ContentResolver,
     private val savedStateHandle: SavedStateHandle? = null,
+    private val onExportRecorded: () -> Unit = {},
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(restoreInitialState(savedStateHandle))
     val state = mutableState.asStateFlow()
@@ -61,6 +62,9 @@ internal class BackupSettingsViewModel(
             val outcome = when (action) {
                 BackupAction.Export -> repository.export { resolver.openOutputStream(uri, "wt") }
                 BackupAction.Restore -> repository.restore { resolver.openInputStream(uri) }
+            }
+            if (outcome == BackupOutcome.Exported) {
+                onExportRecorded()
             }
             finish(outcome)
         }

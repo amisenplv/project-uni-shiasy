@@ -50,8 +50,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,12 +101,19 @@ internal fun RemindersScreen(
     val dueIds = list?.due.orEmpty().mapTo(hashSetOf()) { it.id }
     val listState = rememberLazyListState()
     val titleFocusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
     var pendingCancelId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(newReminderRequestCount) {
         if (newReminderRequestCount > 0) {
             listState.animateScrollToItem(2)
             titleFocusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(state.lastCompletedForRecurring?.id) {
+        if (state.lastCompletedForRecurring != null) {
+            listState.animateScrollToItem(2)
         }
     }
 
@@ -218,15 +227,30 @@ internal fun RemindersScreen(
                 notificationOptions()
             }
 
-            // New Reminder Form
+            // New / Edit Reminder Form + Post-Complete Recurring Prompt
             item {
-                ReminderForm(
-                    state = state,
-                    viewModel = viewModel,
-                    currentMileage = list?.mileage,
-                    mileageKnownMissing = list != null && list.mileage == null,
-                    titleFocusRequester = titleFocusRequester,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.lastCompletedForRecurring?.let { completed ->
+                        RecurringNextBanner(
+                            completedTitle = completed.title,
+                            onScheduleNext = {
+                                viewModel.prepareRecurringNext(completed)
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(2)
+                                    titleFocusRequester.requestFocus()
+                                }
+                            },
+                            onDismiss = viewModel::dismissRecurringPrompt,
+                        )
+                    }
+                    ReminderForm(
+                        state = state,
+                        viewModel = viewModel,
+                        currentMileage = list?.mileage,
+                        mileageKnownMissing = list != null && list.mileage == null,
+                        titleFocusRequester = titleFocusRequester,
+                    )
+                }
             }
 
             // Reminders list status
@@ -299,6 +323,13 @@ internal fun RemindersScreen(
                         currentMileage = list.mileage,
                         state = state,
                         viewModel = viewModel,
+                        onEdit = {
+                            viewModel.startEditing(reminder)
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(2)
+                                titleFocusRequester.requestFocus()
+                            }
+                        },
                         onRequestCancel = { pendingCancelId = reminder.id },
                     )
                 }
@@ -354,7 +385,7 @@ private fun ReminderForm(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = stringResource(R.string.reminders_new),
+                text = stringResource(if (draft.editing) R.string.reminders_edit else R.string.reminders_new),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
@@ -564,12 +595,35 @@ private fun ReminderForm(
                 ),
             ) {
                 Text(
-                    text = stringResource(if (state.writing) R.string.reminder_saving else R.string.reminder_save),
+                    text = stringResource(
+                        when {
+                            state.writing -> R.string.reminder_saving
+                            draft.editing -> R.string.reminder_save_edit
+                            else -> R.string.reminder_save
+                        }
+                    ),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary,
                     ),
                 )
+            }
+
+            if (draft.editing) {
+                OutlinedButton(
+                    onClick = viewModel::cancelEditing,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("reminderCancelEdit"),
+                    enabled = enabled,
+                    shape = VehicleLogShapes.medium,
+                ) {
+                    Text(
+                        text = stringResource(R.string.vehicle_cancel),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                }
             }
 
             if (state.actionId == null) {
@@ -580,9 +634,85 @@ private fun ReminderForm(
 }
 
 @Composable
+private fun RecurringNextBanner(
+    completedTitle: String,
+    onScheduleNext: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val semanticColors = LocalVehicleLogSemanticColors.current
+    val fontScale = LocalDensity.current.fontScale
+    OutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("reminderRecurringBanner"),
+        shape = VehicleLogShapes.large,
+        colors = CardDefaults.outlinedCardColors(containerColor = semanticColors.successSurface),
+        border = BorderStroke(1.dp, semanticColors.successEdge),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.reminder_recurring_prompt, "\u2068$completedTitle\u2069"),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = semanticColors.onSuccess,
+            )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val stack = fontScale >= 1.35f || maxWidth < 340.dp
+                if (stack) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onScheduleNext,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("reminderRecurringNext"),
+                            shape = VehicleLogShapes.medium,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        ) {
+                            Text(stringResource(R.string.reminder_recurring_next))
+                        }
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("reminderRecurringDismiss"),
+                            shape = VehicleLogShapes.medium,
+                        ) {
+                            Text(stringResource(R.string.reminder_recurring_dismiss))
+                        }
+                    }
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onScheduleNext,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("reminderRecurringNext"),
+                            shape = VehicleLogShapes.medium,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        ) {
+                            Text(stringResource(R.string.reminder_recurring_next))
+                        }
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("reminderRecurringDismiss"),
+                            shape = VehicleLogShapes.medium,
+                        ) {
+                            Text(stringResource(R.string.reminder_recurring_dismiss))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReminderFeedback(message: ReminderMessage) {
     val label = when (message) {
         ReminderMessage.Created -> R.string.reminder_created
+        ReminderMessage.Updated -> R.string.reminder_updated
         ReminderMessage.Completed -> R.string.reminder_completed
         ReminderMessage.Canceled -> R.string.reminder_canceled
         ReminderMessage.Failed -> R.string.reminder_write_failed
@@ -621,6 +751,7 @@ private fun ReminderCard(
     currentMileage: Long?,
     state: RemindersUiState,
     viewModel: RemindersViewModel,
+    onEdit: () -> Unit,
     onRequestCancel: () -> Unit,
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
@@ -767,15 +898,17 @@ private fun ReminderCard(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     val completeDescription = "${stringResource(R.string.reminder_complete_action)} ${reminder.title}"
+                    val editDescription = "${stringResource(R.string.reminder_edit_action)} ${reminder.title}"
                     val cancelDescription = "${stringResource(R.string.reminder_cancel_action)} ${reminder.title}"
-                    Row(
+                    val fontScale = LocalDensity.current.fontScale
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Button(
                             onClick = { viewModel.finish(UUID.fromString(reminder.id), complete = true) },
                             modifier = Modifier
-                                .weight(1f)
+                                .fillMaxWidth()
                                 .heightIn(min = 48.dp)
                                 .testTag("reminderComplete:${reminder.id}")
                                 .semantics { contentDescription = completeDescription },
@@ -794,23 +927,63 @@ private fun ReminderCard(
                                 ),
                             )
                         }
-                        OutlinedButton(
-                            onClick = onRequestCancel,
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .testTag("reminderCancel:${reminder.id}")
-                                .semantics { contentDescription = cancelDescription },
-                            shape = VehicleLogShapes.medium,
-                            enabled = !state.writing,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.reminder_cancel_action),
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = semanticColors.onDanger,
-                                ),
-                            )
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val stackSecondary = fontScale >= 1.35f || maxWidth < 340.dp
+                            val editBtn: @Composable (Modifier) -> Unit = { btnMod ->
+                                OutlinedButton(
+                                    onClick = onEdit,
+                                    modifier = btnMod
+                                        .heightIn(min = 48.dp)
+                                        .testTag("reminderEdit:${reminder.id}")
+                                        .semantics { contentDescription = editDescription },
+                                    shape = VehicleLogShapes.medium,
+                                    enabled = !state.writing,
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.reminder_edit_action),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        ),
+                                    )
+                                }
+                            }
+                            val cancelBtn: @Composable (Modifier) -> Unit = { btnMod ->
+                                OutlinedButton(
+                                    onClick = onRequestCancel,
+                                    modifier = btnMod
+                                        .heightIn(min = 48.dp)
+                                        .testTag("reminderCancel:${reminder.id}")
+                                        .semantics { contentDescription = cancelDescription },
+                                    shape = VehicleLogShapes.medium,
+                                    enabled = !state.writing,
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.reminder_cancel_action),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = semanticColors.onDanger,
+                                        ),
+                                    )
+                                }
+                            }
+                            if (stackSecondary) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    editBtn(Modifier.fillMaxWidth())
+                                    cancelBtn(Modifier.fillMaxWidth())
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    editBtn(Modifier.weight(1f))
+                                    cancelBtn(Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }

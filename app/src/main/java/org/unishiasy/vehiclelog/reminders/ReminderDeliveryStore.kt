@@ -33,6 +33,15 @@ internal class ReminderDeliveryStore(private val directory: File) {
         if (!wasDelivered(id)) throw IOException("Could not persist reminder delivery marker")
     }
 
+    fun clear(id: UUID) {
+        val file = File(directory, id.toString())
+        if (file.exists() && !file.delete()) {
+            throw IOException("Could not clear reminder delivery marker")
+        }
+        val backup = File(directory, "$id.bak")
+        if (backup.exists()) backup.delete()
+    }
+
     fun reset() {
         if (!directory.deleteRecursively() && directory.exists()) {
             throw IOException("Could not reset reminder delivery markers")

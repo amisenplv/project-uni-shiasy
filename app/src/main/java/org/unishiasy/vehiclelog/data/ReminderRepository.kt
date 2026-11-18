@@ -24,6 +24,7 @@ class ReminderRepository internal constructor(
     private val clock: Clock = Clock.systemUTC(),
     private val onDateCreated: () -> Unit = {},
     private val finishWithCleanup: suspend (UUID, suspend () -> Int) -> Int = { _, finish -> finish() },
+    private val updateWithCleanup: suspend (UUID, suspend () -> Int) -> Int = { _, update -> update() },
 ) {
     private val dao = database.reminderDao()
 
@@ -45,6 +46,19 @@ class ReminderRepository internal constructor(
                 ReminderEntity(id.toString(), vehicleId, input.title.trim(), input.dueOn, input.dueKilometers, ReminderState.Active.key),
             )
             ReminderWriteResult.Saved
+        }
+        if (result == ReminderWriteResult.Saved && input.dueOn != null) onDateCreated()
+        return result
+    }
+
+    suspend fun update(vehicleId: String, id: UUID, input: ReminderInput): ReminderWriteResult {
+        if (!input.isValid()) return ReminderWriteResult.InvalidInput
+        val result = write {
+            val changed = updateWithCleanup(id) {
+                dao.updateActive(vehicleId, id.toString(), input.title.trim(), input.dueOn, input.dueKilometers)
+            }
+            if (changed == 1) ReminderWriteResult.Saved
+            else ReminderWriteResult.NoActiveReminder
         }
         if (result == ReminderWriteResult.Saved && input.dueOn != null) onDateCreated()
         return result

@@ -17,11 +17,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.unishiasy.vehiclelog.data.LedgerRepository
 import org.unishiasy.vehiclelog.data.ReminderRepository
+import org.unishiasy.vehiclelog.data.ReminderState
 import org.unishiasy.vehiclelog.data.ReminderWriteResult
 import org.unishiasy.vehiclelog.data.isDue
 import org.unishiasy.vehiclelog.data.local.ReminderEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
+import org.unishiasy.vehiclelog.domain.withPersianDigits
 
 internal data class ReminderList(
     val rows: List<ReminderEntity>,
@@ -40,9 +42,10 @@ internal data class RemindersUiState(
     val writing: Boolean = false,
     val message: ReminderMessage? = null,
     val actionId: UUID? = null,
+    val lastCompletedForRecurring: ReminderEntity? = null,
 )
 
-internal enum class ReminderMessage { Created, Completed, Canceled, Failed, NoActiveReminder }
+internal enum class ReminderMessage { Created, Updated, Completed, Canceled, Failed, NoActiveReminder }
 
 internal class RemindersViewModel(
     private val repository: ReminderRepository,
@@ -57,7 +60,14 @@ internal class RemindersViewModel(
 
     fun open(vehicle: VehicleEntity) {
         updateState {
-            it.copy(vehicle = vehicle, draft = ReminderDraft(), showValidation = false, message = null, actionId = null)
+            it.copy(
+                vehicle = vehicle,
+                draft = ReminderDraft(),
+                showValidation = false,
+                message = null,
+                actionId = null,
+                lastCompletedForRecurring = null,
+            )
         }
     }
 
@@ -101,6 +111,69 @@ internal class RemindersViewModel(
         }
     }
 
+    fun startEditing(reminder: ReminderEntity) {
+        if (state.value.writing || reminder.state != ReminderState.Active.key) return
+        updateState {
+            it.copy(
+                draft = ReminderDraft.edit(reminder),
+                showValidation = false,
+                message = null,
+                actionId = null,
+                lastCompletedForRecurring = null,
+            )
+        }
+    }
+
+    fun cancelEditing() {
+        if (state.value.writing) return
+        updateState {
+            it.copy(
+                draft = ReminderDraft(),
+                showValidation = false,
+                message = null,
+                actionId = null,
+            )
+        }
+    }
+
+    fun prepareRecurringNext(completed: ReminderEntity) {
+        if (state.value.writing) return
+        val nextDraft = if (completed.dueOn != null) {
+            val baseDate = completed.dueOn.takeIf { JalaliDates.parseGregorian(it) != null } ?: todayDate().toString()
+            val nextDate = JalaliDates.addMonths(baseDate, 6)?.let(JalaliDates::formatJalaliInput).orEmpty()
+            ReminderDraft(
+                id = UUID.randomUUID(),
+                editing = false,
+                title = completed.title,
+                threshold = ReminderThreshold.Date,
+                date = nextDate,
+            )
+        } else {
+            val baseKm = state.value.list?.mileage ?: completed.dueKilometers ?: 0L
+            val nextKm = if (baseKm > Long.MAX_VALUE - 5_000L) Long.MAX_VALUE else baseKm + 5_000L
+            ReminderDraft(
+                id = UUID.randomUUID(),
+                editing = false,
+                title = completed.title,
+                threshold = ReminderThreshold.Mileage,
+                mileage = nextKm.toString().withPersianDigits(),
+            )
+        }
+        updateState {
+            it.copy(
+                draft = nextDraft,
+                showValidation = false,
+                message = null,
+                actionId = null,
+                lastCompletedForRecurring = null,
+            )
+        }
+    }
+
+    fun dismissRecurringPrompt() {
+        updateState { it.copy(lastCompletedForRecurring = null) }
+    }
+
     fun save() {
         val current = state.value
         val vehicle = current.vehicle ?: return
@@ -110,12 +183,22 @@ internal class RemindersViewModel(
             updateState { it.copy(showValidation = true, message = null, actionId = null) }
             return
         }
-        write(ReminderMessage.Created) { repository.create(vehicle.id, current.draft.id, input) }
+        if (current.draft.editing) {
+            write(ReminderMessage.Updated) { repository.update(vehicle.id, current.draft.id, input) }
+        } else {
+            write(ReminderMessage.Created) { repository.create(vehicle.id, current.draft.id, input) }
+        }
     }
 
     fun finish(id: UUID, complete: Boolean) {
-        val vehicle = state.value.vehicle ?: return
-        write(if (complete) ReminderMessage.Completed else ReminderMessage.Canceled, id) {
+        val current = state.value
+        val vehicle = current.vehicle ?: return
+        val target = current.list?.rows?.firstOrNull { it.id == id.toString() }
+        write(
+            success = if (complete) ReminderMessage.Completed else ReminderMessage.Canceled,
+            actionId = id,
+            completedTarget = target.takeIf { complete },
+        ) {
             if (complete) repository.complete(vehicle.id, id) else repository.cancel(vehicle.id, id)
         }
     }
@@ -123,6 +206,7 @@ internal class RemindersViewModel(
     private fun write(
         success: ReminderMessage,
         actionId: UUID? = null,
+        completedTarget: ReminderEntity? = null,
         operation: suspend () -> ReminderWriteResult,
     ) {
         if (state.value.writing) return
@@ -135,6 +219,8 @@ internal class RemindersViewModel(
             }
             updateState {
                 val saved = result == ReminderWriteResult.Saved
+                val resetDraft = saved && (success == ReminderMessage.Created || success == ReminderMessage.Updated)
+                val cancelActiveEdit = saved && actionId != null && it.draft.editing && it.draft.id == actionId
                 it.copy(
                     writing = false,
                     message = when (result) {
@@ -142,8 +228,15 @@ internal class RemindersViewModel(
                         ReminderWriteResult.NoActiveReminder -> ReminderMessage.NoActiveReminder
                         else -> ReminderMessage.Failed
                     },
-                    draft = if (saved && success == ReminderMessage.Created) ReminderDraft() else it.draft,
-                    showValidation = it.showValidation && !(saved && success == ReminderMessage.Created),
+                    draft = if (resetDraft || cancelActiveEdit) ReminderDraft() else it.draft,
+                    showValidation = it.showValidation && !(resetDraft || cancelActiveEdit),
+                    lastCompletedForRecurring = if (saved && completedTarget != null) {
+                        completedTarget
+                    } else if (saved) {
+                        null
+                    } else {
+                        it.lastCompletedForRecurring
+                    },
                 )
             }
         }
@@ -168,6 +261,7 @@ internal class RemindersViewModel(
         handle[KEY_VEHICLE_YEAR] = vehicle?.productionYear
         handle[KEY_VEHICLE_CALENDAR] = vehicle?.productionYearCalendar
         handle[KEY_DRAFT_ID] = state.draft.id.toString()
+        handle[KEY_DRAFT_EDITING] = state.draft.editing
         handle[KEY_DRAFT_TITLE] = state.draft.title
         handle[KEY_DRAFT_THRESHOLD] = state.draft.threshold.name
         handle[KEY_DRAFT_DATE] = state.draft.date
@@ -184,6 +278,7 @@ internal class RemindersViewModel(
         private const val KEY_VEHICLE_YEAR = "reminders_vm_vehicle_year"
         private const val KEY_VEHICLE_CALENDAR = "reminders_vm_vehicle_calendar"
         private const val KEY_DRAFT_ID = "reminders_vm_draft_id"
+        private const val KEY_DRAFT_EDITING = "reminders_vm_draft_editing"
         private const val KEY_DRAFT_TITLE = "reminders_vm_draft_title"
         private const val KEY_DRAFT_THRESHOLD = "reminders_vm_draft_threshold"
         private const val KEY_DRAFT_DATE = "reminders_vm_draft_date"
@@ -215,6 +310,7 @@ internal class RemindersViewModel(
             } ?: ReminderThreshold.Date
             val draft = ReminderDraft(
                 id = draftId,
+                editing = handle.get<Boolean>(KEY_DRAFT_EDITING) == true,
                 title = handle.get<String>(KEY_DRAFT_TITLE).orEmpty(),
                 threshold = threshold,
                 date = handle.get<String>(KEY_DRAFT_DATE).orEmpty(),

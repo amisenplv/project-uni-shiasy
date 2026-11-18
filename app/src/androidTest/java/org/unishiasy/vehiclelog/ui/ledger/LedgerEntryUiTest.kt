@@ -600,6 +600,8 @@ class LedgerEntryUiTest {
         compose.onNodeWithTag("ledgerRecent:$targetId").assertIsDisplayed()
 
         compose.onNodeWithTag("ledgerRecent:$targetId").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entryDetailEdit").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entryDetailEdit").performClick()
         compose.waitUntil(5_000) { ledger.state.value.draft?.id == targetId }
         compose.onNodeWithTag("ledgerSave").performScrollTo().assertIsDisplayed()
 
@@ -694,6 +696,8 @@ class LedgerEntryUiTest {
         val tag = "ledgerRecent:$id"
         compose.waitUntil(5_000) { ledger.state.value.recent?.any { it.id == id.toString() } == true }
         compose.onNodeWithTag(tag).performScrollTo().performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entryDetailEdit").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entryDetailEdit").performClick()
         compose.waitUntil(5_000) { ledger.state.value.draft?.id == id }
     }
 

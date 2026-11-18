@@ -60,8 +60,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Instant
+import java.time.ZoneId
+import org.unishiasy.vehiclelog.BuildConfig
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.backup.BackupOutcome
+import org.unishiasy.vehiclelog.domain.JalaliDates
+import org.unishiasy.vehiclelog.domain.withPersianDigits
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
 
@@ -72,11 +77,14 @@ internal fun BackupSettingsScreen(
     cloudSettings: CloudSettingsViewModel? = null,
     appearancePreferences: AppearancePreferences? = null,
     notificationOptions: @Composable () -> Unit = {},
+    backupPreferences: BackupPreferences? = null,
 ) {
     val context = LocalContext.current
     val semanticColors = LocalVehicleLogSemanticColors.current
     val prefs = appearancePreferences ?: remember { AppearancePreferences(context) }
     val currentThemeMode by prefs.themeMode.collectAsState()
+    val backupMeta = backupPreferences ?: remember { BackupPreferences(context) }
+    val lastExportEpochMillis by backupMeta.lastExportEpochMillis.collectAsState()
 
     var cloudOpen by rememberSaveable { mutableStateOf(false) }
     if (cloudOpen && cloudSettings != null) {
@@ -343,6 +351,20 @@ internal fun BackupSettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
+                        val lastExportText = lastExportEpochMillis?.let { ms ->
+                            val tehranDate = Instant.ofEpochMilli(ms)
+                                .atZone(ZoneId.of("Asia/Tehran"))
+                                .toLocalDate()
+                                .toString()
+                            val jalaliDate = JalaliDates.formatGregorian(tehranDate) ?: tehranDate.withPersianDigits()
+                            stringResource(R.string.backup_last_date, jalaliDate)
+                        } ?: stringResource(R.string.backup_last_never)
+                        Text(
+                            text = lastExportText,
+                            modifier = Modifier.testTag("backupLastExportDate"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Button(
                             onClick = {
                                 launchPicker(viewModel, BackupAction.Export) { export.launch("vehicle-ledger-backup.json") }
@@ -482,6 +504,50 @@ internal fun BackupSettingsScreen(
                                 isError -> semanticColors.onDanger
                                 else -> MaterialTheme.colorScheme.onSurface
                             },
+                        )
+                    }
+                }
+            }
+
+            // Section 4: About, Privacy & Version Info
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_about_title),
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settingsAboutCard"),
+                    shape = VehicleLogShapes.large,
+                    colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.settings_version_label,
+                                "\u2066${BuildConfig.VERSION_NAME.withPersianDigits()}\u2069",
+                                BuildConfig.VERSION_CODE.toString().withPersianDigits(),
+                            ),
+                            modifier = Modifier.testTag("settingsVersionText"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_offline_privacy),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
