@@ -391,6 +391,9 @@ internal class LedgerViewModel(
         handle[KEY_DASHBOARD_CUR_MONTH] = dashboard?.currentMonth?.month
         handle[KEY_DASHBOARD_SEL_YEAR] = dashboard?.selectedMonth?.year
         handle[KEY_DASHBOARD_SEL_MONTH] = dashboard?.selectedMonth?.month
+
+        handle[KEY_INSPECTING_ENTRY_ID] = state.inspectingEntryId
+        handle[KEY_PENDING_DELETION_ID] = state.entryPendingDeletion
     }
 
     companion object {
@@ -422,6 +425,8 @@ internal class LedgerViewModel(
         private const val KEY_DASHBOARD_CUR_MONTH = "ledger_vm_dashboard_cur_month"
         private const val KEY_DASHBOARD_SEL_YEAR = "ledger_vm_dashboard_sel_year"
         private const val KEY_DASHBOARD_SEL_MONTH = "ledger_vm_dashboard_sel_month"
+        private const val KEY_INSPECTING_ENTRY_ID = "ledger_vm_inspecting_entry_id"
+        private const val KEY_PENDING_DELETION_ID = "ledger_vm_pending_deletion_id"
 
         private fun restoreInitialState(handle: SavedStateHandle?): LedgerUiState {
             if (handle == null) return LedgerUiState()
@@ -479,7 +484,13 @@ internal class LedgerViewModel(
                 MonthlyDashboardState(currentMonth = current, selectedMonth = selected)
             } else null
 
-            return LedgerUiState(vehicle = vehicle, draft = draft, dashboard = dashboard)
+            return LedgerUiState(
+                vehicle = vehicle,
+                draft = draft,
+                dashboard = dashboard,
+                inspectingEntryId = handle.get<String>(KEY_INSPECTING_ENTRY_ID),
+                entryPendingDeletion = handle.get<String>(KEY_PENDING_DELETION_ID),
+            )
         }
     }
 }

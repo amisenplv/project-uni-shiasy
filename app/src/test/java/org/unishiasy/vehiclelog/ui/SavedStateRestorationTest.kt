@@ -167,6 +167,25 @@ class SavedStateRestorationTest {
     }
 
     @Test
+    fun ledgerViewModelRestoresInspectingEntryAndPendingDeletion() {
+        val ledgerRepo = LedgerRepository(database)
+        val originalHandle = SavedStateHandle()
+        val firstVm = LedgerViewModel(ledgerRepo, clock, originalHandle)
+        val targetId = UUID.randomUUID().toString()
+
+        firstVm.openVehicle(vehicle)
+        firstVm.inspectEntry(targetId)
+        firstVm.requestDelete(targetId)
+
+        val restoredHandle = originalHandle.recreateViaBundle()
+        val restoredVm = LedgerViewModel(ledgerRepo, clock, restoredHandle)
+
+        assertEquals(vehicle, restoredVm.state.value.vehicle)
+        assertEquals(targetId, restoredVm.state.value.inspectingEntryId)
+        assertEquals(targetId, restoredVm.state.value.entryPendingDeletion)
+    }
+
+    @Test
     fun remindersViewModelRestoresVehicleDraftAndValidation() {
         val ledgerRepo = LedgerRepository(database)
         val reminderRepo = ReminderRepository(database, ledgerRepo, clock)

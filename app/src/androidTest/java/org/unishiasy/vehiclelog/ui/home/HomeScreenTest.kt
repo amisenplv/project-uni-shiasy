@@ -274,6 +274,9 @@ class HomeScreenTest {
         compose.onNodeWithTag("homeQuickAdd").performClick()
         compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۱۵٬۰۰۰")
         compose.onNodeWithTag("ledgerVolume").performScrollTo().performTextReplacement("۳۰")
+        if (compose.onAllNodesWithTag("ledgerMileage").fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
+        }
         compose.onNodeWithTag("ledgerMileage").performScrollTo().performTextReplacement("۱۲۵۰")
         compose.onNodeWithTag("ledgerDate").performScrollTo().performTextReplacement("۱۴۰۵/۰۱/۰۱")
         compose.onNodeWithTag("ledgerSave").performScrollTo().performClick()

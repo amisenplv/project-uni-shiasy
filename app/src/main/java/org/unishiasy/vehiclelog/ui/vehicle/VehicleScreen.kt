@@ -223,7 +223,7 @@ private fun VehicleList(
     when {
         state.listFailed -> {
             ErrorText(R.string.vehicle_list_failed)
-            OutlinedButton(onClick = viewModel::retryList, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = viewModel::retryList, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.vehicle_retry))
             }
         }
@@ -355,7 +355,7 @@ private fun VehicleList(
             for (vehicle in vehicles) {
                 OutlinedButton(
                     onClick = { viewModel.editVehicle(vehicle) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     shape = MaterialTheme.shapes.medium,
                 ) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -542,7 +542,7 @@ private fun VehicleCatalogPicker(
     AlertDialog(
         onDismissRequest = onClose,
         confirmButton = {
-            TextButton(onClick = onClose) {
+            TextButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.vehicle_catalog_close))
             }
         },
@@ -571,7 +571,7 @@ private fun VehicleCatalogPicker(
                         items(results, key = { it.key }) { entry ->
                             TextButton(
                                 onClick = { onSelect(entry) },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             ) {
                                 Text(entry.displayLabel, modifier = Modifier.fillMaxWidth())
                             }
