@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -293,7 +294,7 @@ class VisualAuditCaptureTest {
         compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodes(hasTestTag("monthlyDashboard")).fetchSemanticsNodes().isNotEmpty() }
         capture("09_monthly_dashboard")
-        compose.onNodeWithText(context.getString(R.string.dashboard_back)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
         instrumentation.runOnMainSync { ledgerVm.back() }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("سمند LX").fetchSemanticsNodes().isNotEmpty() }
 
@@ -366,7 +367,7 @@ class VisualAuditCaptureTest {
         compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodes(hasTestTag("monthlyDashboard")).fetchSemanticsNodes().isNotEmpty() }
         capture("dark_09_monthly_dashboard")
-        compose.onNodeWithText(context.getString(R.string.dashboard_back)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
         instrumentation.runOnMainSync { ledgerVm.back() }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("سمند LX").fetchSemanticsNodes().isNotEmpty() }
 

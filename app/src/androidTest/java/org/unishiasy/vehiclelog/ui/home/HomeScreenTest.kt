@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -279,7 +280,7 @@ class HomeScreenTest {
         compose.onNodeWithTag("homeOpenDashboard").performScrollTo().performClick()
         compose.onNodeWithTag("monthlyDashboard").assertIsDisplayed()
 
-        compose.onNodeWithText(context.getString(R.string.dashboard_back)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
         compose.onNodeWithText(context.getString(R.string.ledger_back)).performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeScreen").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("homeScreen").assertIsDisplayed()

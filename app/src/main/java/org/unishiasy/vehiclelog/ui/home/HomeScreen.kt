@@ -25,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +69,8 @@ import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.JalaliMonth
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
+import org.unishiasy.vehiclelog.ui.components.LedgerSettingsAction
 import org.unishiasy.vehiclelog.ui.components.NoticeBanner
 import org.unishiasy.vehiclelog.ui.components.NoticeTone
 import org.unishiasy.vehiclelog.ui.components.VehicleSwitcherSheet
@@ -149,6 +152,11 @@ internal fun HomeScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(title = stringResource(R.string.app_name)) {
+                if (onOpenSettings != null) LedgerSettingsAction(onOpenSettings)
+            }
+        },
         bottomBar = bottomBar,
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
@@ -163,54 +171,7 @@ internal fun HomeScreen(
                 .testTag("homeScreen"),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Top App Bar
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(semanticColors.wash),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_book),
-                            contentDescription = null,
-                            tint = semanticColors.action,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Text(
-                        stringResource(R.string.app_name),
-                        modifier = Modifier.semantics { heading() },
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
 
-                if (onOpenSettings != null) {
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("homeOpenSettings"),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_settings),
-                            contentDescription = stringResource(R.string.backup_settings),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
-            }
 
             if (selectedVehicle != null) {
                 val mileage = state.selectedVehicleMileage
@@ -280,11 +241,6 @@ internal fun HomeScreen(
                             modifier = btnModifier
                                 .heightIn(min = 48.dp)
                                 .testTag("homeQuickAdd"),
-                            shape = VehicleLogShapes.medium,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -303,7 +259,7 @@ internal fun HomeScreen(
                         }
                     }
                     val expenseButton: @Composable (Modifier) -> Unit = { btnModifier ->
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = {
                                 if (onOpenGeneralExpense != null) {
                                     onOpenGeneralExpense(selectedVehicle)
@@ -314,8 +270,6 @@ internal fun HomeScreen(
                             modifier = btnModifier
                                 .heightIn(min = 48.dp)
                                 .testTag("homeAddExpense"),
-                            shape = VehicleLogShapes.medium,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -329,7 +283,6 @@ internal fun HomeScreen(
                                 Text(
                                     stringResource(R.string.home_log_expense),
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
@@ -478,7 +431,7 @@ internal fun HomeScreen(
                         OutlinedCard(
                             modifier = Modifier.fillMaxWidth(),
                             shape = VehicleLogShapes.medium,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
                         ) {
                             Text(
@@ -576,7 +529,7 @@ internal fun HomeScreen(
             }
 
             // Bottom Navigation Footer
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            HorizontalDivider()
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -641,7 +594,7 @@ private fun RecentEntryRow(entry: HistoryEntry, onClick: () -> Unit) {
             .testTag("homeRecent:${entry.id}"),
         shape = VehicleLogShapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             modifier = Modifier

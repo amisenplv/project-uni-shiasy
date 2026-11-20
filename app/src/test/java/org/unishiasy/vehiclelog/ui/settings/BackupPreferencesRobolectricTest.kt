@@ -167,15 +167,15 @@ class BackupPreferencesRobolectricTest {
         }
         compose.waitForIdle()
 
-        // Home stale backup banner visible because entries exist & never backed up
+        // The scrollable Home shows a stale backup banner when entries exist and no backup was made.
         compose.waitUntil(5_000) {
             ShadowLooper.idleMainLooper()
             compose.onAllNodesWithTag("homeStaleBackupBanner").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("homeStaleBackupBanner").assertIsDisplayed()
+        compose.onNodeWithTag("homeStaleBackupBanner").performScrollTo().assertIsDisplayed()
 
         // Open Settings -> shows "never backed up" and About/Version card
-        compose.onNodeWithTag("homeStaleBackupAction").performClick()
+        compose.onNodeWithTag("homeStaleBackupAction").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("backupSettings").fetchSemanticsNodes().isNotEmpty() }
 
         compose.onNodeWithTag("backupLastExportDate")

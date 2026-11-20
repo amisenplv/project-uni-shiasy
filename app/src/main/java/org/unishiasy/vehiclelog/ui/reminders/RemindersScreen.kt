@@ -82,6 +82,7 @@ import org.unishiasy.vehiclelog.data.local.ReminderEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
@@ -101,7 +102,7 @@ internal fun RemindersScreen(
     val dueIds = dueReminders.mapTo(hashSetOf()) { it.id }
     val otherReminders = list?.rows.orEmpty().filterNot { it.id in dueIds }
     // Header and notification options always occupy one item each.
-    val formIndex = 2 + dueReminders.size + if (dueReminders.isEmpty()) 0 else 1
+    val formIndex = 1 + dueReminders.size + if (dueReminders.isEmpty()) 0 else 1
     val listState = rememberLazyListState()
     val titleFocusRequester = remember { FocusRequester() }
     var pendingCancelId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -194,6 +195,15 @@ internal fun RemindersScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(
+                title = stringResource(R.string.reminders_title),
+                subtitle = vehicle.displayLabel,
+                onBack = viewModel::back,
+                backEnabled = !state.writing,
+                backModifier = Modifier.testTag("remindersBack"),
+            )
+        },
         bottomBar = bottomBar,
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
@@ -208,46 +218,7 @@ internal fun RemindersScreen(
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = viewModel::back,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("remindersBack"),
-                        enabled = !state.writing,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = stringResource(R.string.ledger_back),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.reminders_title),
-                            modifier = Modifier.semantics { heading() },
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 22.sp,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = vehicle.displayLabel,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                textDirection = TextDirection.ContentOrRtl,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+
 
             if (dueReminders.isNotEmpty()) {
                 item(key = "due-heading") {

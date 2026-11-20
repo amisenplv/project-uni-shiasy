@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -112,7 +113,7 @@ class LedgerEntryUiTest {
         selectReportMonth("1405-1")
         assertDashboardTotal("۰ تومان")
         compose.onNodeWithTag("monthlyDashboard").performScrollToIndex(0)
-        compose.onNodeWithText(context.getString(R.string.dashboard_back)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
         compose.onNodeWithText(context.getString(R.string.ledger_add)).assertIsDisplayed()
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
     }
@@ -551,7 +552,7 @@ class LedgerEntryUiTest {
         dashboardItem("dashboardEntryCount").assertTextContains("تعداد ثبت‌ها: ۶")
 
         compose.onNodeWithTag("monthlyDashboard").performScrollToIndex(0)
-        compose.onNodeWithText(context.getString(R.string.dashboard_back)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
 
         compose.waitUntil(5_000) { ledger.state.value.entries?.any { it.id == fuelId.toString() } == true }

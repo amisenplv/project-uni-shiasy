@@ -5,11 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -19,6 +22,7 @@ import org.unishiasy.vehiclelog.ui.reminders.ReminderNotificationOptions
 import org.unishiasy.vehiclelog.ui.settings.BackupSettingsViewModel
 import org.unishiasy.vehiclelog.ui.settings.CloudSettingsViewModel
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogTheme
+import org.unishiasy.vehiclelog.ui.settings.ThemeMode
 import org.unishiasy.vehiclelog.ui.ledger.LedgerHost
 import org.unishiasy.vehiclelog.ui.ledger.LedgerViewModel
 import org.unishiasy.vehiclelog.ui.vehicle.VehicleViewModel
@@ -106,8 +110,19 @@ class MainActivity : ComponentActivity() {
         val cloudSettings = if (BuildConfig.LOCAL_CLOUD_ENABLED) cloudSettingsViewModel else null
         setContent {
             val themeMode by container.appearancePreferences.themeMode.collectAsState()
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
+            }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                VehicleLogTheme(themeMode = themeMode) {
+                VehicleLogTheme(darkTheme = darkTheme) {
                     LedgerHost(
                         vehicles = vehicles,
                         ledger = ledger,

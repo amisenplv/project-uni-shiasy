@@ -9,7 +9,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,13 +26,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,16 +48,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.Instant
@@ -67,6 +66,7 @@ import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.backup.BackupOutcome
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
 
@@ -103,6 +103,13 @@ internal fun BackupSettingsScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(
+                title = stringResource(R.string.backup_settings),
+                onBack = viewModel::back,
+                backEnabled = idle,
+            )
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         Column(
@@ -115,33 +122,7 @@ internal fun BackupSettingsScreen(
                 .testTag("backupSettings"),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            // Top Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = viewModel::back,
-                    modifier = Modifier.size(48.dp),
-                    enabled = idle,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_back),
-                        contentDescription = stringResource(R.string.ledger_back),
-                        tint = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.backup_settings),
-                    modifier = Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+
 
             // Section 1: Appearance (ظاهر)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -166,78 +147,25 @@ internal fun BackupSettingsScreen(
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        val fontScale = LocalDensity.current.fontScale
                         val options = listOf(
                             ThemeMode.SYSTEM to R.string.settings_appearance_system,
                             ThemeMode.LIGHT to R.string.settings_appearance_light,
                             ThemeMode.DARK to R.string.settings_appearance_dark,
                         )
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val stackModes = fontScale >= 1.35f || maxWidth < 360.dp
-                            if (stackModes) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    for ((mode, stringRes) in options) {
-                                        val isSelected = currentThemeMode == mode
-                                        FilterChip(
-                                            selected = isSelected,
+                        Column(Modifier.selectableGroup()) {
+                            for ((mode, stringRes) in options) {
+                                val selected = currentThemeMode == mode
+                                ListItem(
+                                    headlineContent = { Text(stringResource(stringRes)) },
+                                    leadingContent = { RadioButton(selected = selected, onClick = null) },
+                                    modifier = Modifier
+                                        .selectable(
+                                            selected = selected,
+                                            role = Role.RadioButton,
                                             onClick = { prefs.setThemeMode(mode) },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .heightIn(min = 48.dp)
-                                                .testTag("themeMode:${mode.name}"),
-                                            shape = VehicleLogShapes.medium,
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                            ),
-                                            label = {
-                                                Text(
-                                                    text = stringResource(stringRes),
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    textAlign = TextAlign.Center,
-                                                    style = MaterialTheme.typography.labelMedium.copy(
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    ),
-                                                )
-                                            },
                                         )
-                                    }
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    for ((mode, stringRes) in options) {
-                                        val isSelected = currentThemeMode == mode
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { prefs.setThemeMode(mode) },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .heightIn(min = 48.dp)
-                                                .testTag("themeMode:${mode.name}"),
-                                            shape = VehicleLogShapes.medium,
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                            ),
-                                            label = {
-                                                Text(
-                                                    text = stringResource(stringRes),
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    textAlign = TextAlign.Center,
-                                                    style = MaterialTheme.typography.labelMedium.copy(
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    ),
-                                                )
-                                            },
-                                        )
-                                    }
-                                }
+                                        .testTag("themeMode:${mode.name}"),
+                                )
                             }
                         }
                     }

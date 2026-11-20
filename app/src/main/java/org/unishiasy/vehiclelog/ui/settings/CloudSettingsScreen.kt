@@ -52,6 +52,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
 import org.unishiasy.vehiclelog.R
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.data.cloud.CloudBinding
 import org.unishiasy.vehiclelog.data.cloud.CloudIssue
 import org.unishiasy.vehiclelog.data.cloud.CloudRetry
@@ -89,6 +90,13 @@ internal fun CloudSettingsScreen(viewModel: CloudSettingsViewModel, onBack: () -
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(
+                title = stringResource(R.string.cloud_title),
+                onBack = back,
+                backEnabled = !state.busy,
+            )
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         Column(
@@ -96,11 +104,7 @@ internal fun CloudSettingsScreen(viewModel: CloudSettingsViewModel, onBack: () -
                 .verticalScroll(rememberScrollState()).padding(24.dp).testTag("cloudScreen"),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TextButton(onClick = back, enabled = !state.busy, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.ledger_back))
-            }
-            Text(stringResource(R.string.cloud_title), Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium)
+
             Text(stringResource(R.string.cloud_notice))
             HorizontalDivider()
             if (status != null) {

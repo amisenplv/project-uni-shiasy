@@ -33,7 +33,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
@@ -75,6 +74,8 @@ import org.unishiasy.vehiclelog.data.catalog.VehicleCatalog
 import org.unishiasy.vehiclelog.data.catalog.VehicleCatalogEntry
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
+import org.unishiasy.vehiclelog.ui.components.LedgerSettingsAction
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
 
@@ -86,13 +87,30 @@ internal fun VehicleScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val draft = state.draft
-    val semanticColors = LocalVehicleLogSemanticColors.current
     BackHandler(enabled = draft != null || state.managingList) {
         if (draft != null) viewModel.cancel() else viewModel.closeManagement()
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            if (draft != null) {
+                LedgerTopBar(
+                    title = stringResource(if (draft.id == null) R.string.vehicle_add else R.string.vehicle_edit),
+                    onBack = viewModel::cancel,
+                    backLabel = stringResource(R.string.vehicle_cancel),
+                )
+            } else {
+                LedgerTopBar(
+                    title = stringResource(if (state.managingList) R.string.vehicle_list_title else R.string.app_name),
+                    onBack = if (state.managingList) viewModel::closeManagement else null,
+                    backLabel = stringResource(R.string.vehicle_cancel),
+                    backModifier = Modifier.testTag("vehicleManageBack"),
+                ) {
+                    if (onOpenSettings != null) LedgerSettingsAction(onOpenSettings)
+                }
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         key(draft != null) {
@@ -107,96 +125,8 @@ internal fun VehicleScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 if (draft == null) {
-                    // Top App Bar for First Launch / Empty State / Manage Vehicles
-                    Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            if (state.managingList) {
-                                IconButton(
-                                    onClick = viewModel::closeManagement,
-                                    modifier = Modifier.size(48.dp).testTag("vehicleManageBack"),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_arrow_back),
-                                        contentDescription = stringResource(R.string.vehicle_cancel),
-                                        tint = MaterialTheme.colorScheme.onBackground,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(semanticColors.wash),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_book),
-                                        contentDescription = null,
-                                        tint = semanticColors.action,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                            }
-                            Text(
-                                stringResource(if (state.managingList) R.string.vehicle_list_title else R.string.app_name),
-                                modifier = Modifier.semantics { heading() },
-                                style = MaterialTheme.typography.headlineLarge,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-
-                        if (onOpenSettings != null) {
-                            IconButton(
-                                onClick = onOpenSettings,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .testTag("homeOpenSettings"),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_settings),
-                                    contentDescription = stringResource(R.string.backup_settings),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                        }
-                    }
-
                     VehicleList(state, viewModel, openLedger, onOpenSettings)
                 } else {
-                    // Vehicle Add / Edit Top Bar
-                    Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        IconButton(
-                            onClick = viewModel::cancel,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_arrow_back),
-                                contentDescription = stringResource(R.string.vehicle_cancel),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                        Text(
-                            stringResource(if (draft.id == null) R.string.vehicle_add else R.string.vehicle_edit),
-                            modifier = Modifier.semantics { heading() },
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
-
                     VehicleForm(draft, state, viewModel)
                 }
             }
@@ -233,8 +163,7 @@ private fun VehicleList(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = VehicleLogShapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -283,11 +212,6 @@ private fun VehicleList(
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
                             .testTag("vehicleAddButton"),
-                        shape = VehicleLogShapes.medium,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_plus),
@@ -307,7 +231,7 @@ private fun VehicleList(
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = VehicleLogShapes.large,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 Column(
@@ -331,8 +255,6 @@ private fun VehicleList(
                                 .fillMaxWidth()
                                 .heightIn(min = 48.dp)
                                 .testTag("homeRestoreBackup"),
-                            shape = VehicleLogShapes.medium,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_restore),

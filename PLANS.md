@@ -1270,6 +1270,21 @@ The [staged roadmap](docs/delivery/ROADMAP.md#roadmap-from-rc5-to-cafe-bazaar) p
 4. In Reminders use the create shortcut for a date one month ahead, then create a separate mileage reminder at ۵۶۰۰۰ km. Capture `home.png` and `reminders-due.png` while it is due. Tap «انجام شد». Force-stop through app info, then tap the app icon in the launcher while still offline. Verify both History rows, the totals, the future reminder still pending, and the mileage reminder completed and off Home.
 5. Inspect light and dark themes at 150% font scale and narrow portrait width. Open the fuel keyboard again and check that Save remains visible.
 
+### Private APK handoff · 2026-11-19
+
+- **PASS · Release assembly.** On Gradle 9.6.0, AGP 9.5.1 and JetBrains JDK 21, `./gradlew :app:assembleRelease --console=plain` completed with R8 and vital lint. The [aligned unsigned APK](app/build/outputs/apk/release/vehiclelog-release-aligned-unsigned.apk) passed `zipalign -c -P 16 4`. Manifest ID `org.mewlog.vehiclelog`, version 0.1.0 (1), nondebuggable. SHA-256 `b4e787c5582d22e51714ed77ab2aefb61e10c7a8773e45928bd2f663fde9b668`.
+- **PASS · Installable debug fallback.** `./gradlew :app:assembleDebug` completed and `apksigner verify --verbose` verified one signer and the v2 signature. [Debug APK](app/build/outputs/apk/debug/app-debug.apk), manifest ID `org.mewlog.vehiclelog.debug`, version 0.1.0 (1), minimum Android API 26. SHA-256 `6bc87f1d5c0bec7b8e934ff97d2ce11180f99bb4a3ca9230db9805e958ab825d`.
+- **PENDING · Release signing.** The existing test keystore is present and requires the owner's password in a private terminal. [Signing procedure](docs/delivery/ANDROID_RELEASE.md)
+- **NOT VERIFIED · Device install or launch.** ADB listed no connected device.
+
+### Material 3 interface pass · 2026-11-20
+
+- Applied shared Material 3 app bars to Home, History, entry forms, Report, Reminders, vehicle setup and management, Settings, and optional cloud settings. Adopted the Material 3 navigation bar, tonal action hierarchy, surface roles, modal handles, and radio list items. Kept Persian RTL, Vazirmatn, Jalali values, and existing entry, reminder, backup and navigation behavior.
+- **PASS · Host checks.** With JDK 21, `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:testDebugUnitTest --console=plain --continue --max-workers=1 --warning-mode=none` passed. [Host test report](app/build/reports/tests/testDebugUnitTest/index.html) recorded 123 tests, zero failures, and zero skips. The first run surfaced outdated shape and backup viewport assertions and two saved-state coroutine teardown failures. The assertions were updated for the new UI and both teardown failures cleared on the full rerun. [Lint report](app/build/reports/lint-results-debug.html)
+- **PASS · Emulator visual checks.** On Medium Phone API 37 (emulator-5554), checked light theme at the default 411 dp width and created a sample vehicle. On the final Debug APK in dark theme at 320 dp and 150% font scale, both Home shortcuts and all three destination labels fit in the portrait viewport. Opened Fuel and focused the amount field. Save stayed visible above Gboard. Restored the emulator display settings.
+- **Debug artifact.** [APK](app/build/outputs/apk/debug/app-debug.apk), application ID `org.mewlog.vehiclelog.debug`, SHA-256 `7058bef592b4ad923a607d89c5d34f220fe2f238bb084185f6e896e122a15e12`.
+- **NOT VERIFIED · Physical device and connected instrumentation.** No physical phone was used. The test APK was assembled; connected instrumentation was not run in this pass.
+
 ## M5. Optional cloud snapshot recovery
 
 **Status as of 2026-11-16: M5 DEVELOPMENT COMPLETE FOR ISOLATED LOCAL TESTING.** M5.0–M5.4 are complete for the approved synthetic scope. The Android cloud flow is opt-in debug only and uses a loopback backend. Option A approval covers the limited-pilot design. External staging remains unapproved and unverified, a real-data pilot remains unauthorized and unverified, and public release readiness remains unestablished. The separate M4 physical release gate remains **DEFERRED / NOT VERIFIED** and open. **Provisional effort:** 13–20 days under the baseline estimate. Re-estimate if client-side encryption is approved.

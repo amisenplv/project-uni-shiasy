@@ -12,20 +12,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,33 +32,36 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.ui.theme.ButtonShape
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
-import org.unishiasy.vehiclelog.ui.theme.NoticeShape
 import org.unishiasy.vehiclelog.ui.theme.SheetShape
 import org.unishiasy.vehiclelog.ui.vehicle.toPersianYear
 
@@ -71,13 +71,7 @@ enum class MainTab {
     REMINDERS;
 }
 
-/**
- * Concept C persistent bottom dock.
- *
- * Sits at the bottom of the screen with:
- * - A primary action button ("ثبت جدید" on Home/History, "ثبت یادآور" on Reminders).
- * - A 3-item navigation row (خانه, سوابق, یادآورها) with equal 48dp+ targets.
- */
+/** Main destinations and the current destination's create action. */
 @Composable
 fun AppBottomDock(
     activeTab: MainTab,
@@ -86,23 +80,12 @@ fun AppBottomDock(
     modifier: Modifier = Modifier,
     showPrimaryAction: Boolean = true,
 ) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
-
+    val colors = MaterialTheme.colorScheme
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("appBottomDock"),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, semanticColors.rule),
-        shadowElevation = 4.dp,
+        modifier = modifier.fillMaxWidth().testTag("appBottomDock"),
+        color = colors.surfaceContainer,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        Column {
             if (showPrimaryAction) {
                 val actionTextRes = when (activeTab) {
                     MainTab.REMINDERS -> R.string.dock_new_reminder
@@ -112,120 +95,105 @@ fun AppBottomDock(
                     onClick = onPrimaryAction,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
                         .heightIn(min = 48.dp)
                         .testTag("dockPrimaryAction"),
-                    shape = ButtonShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_plus),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(
-                            text = stringResource(actionTextRes),
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                            ),
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_plus),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(actionTextRes))
                 }
             }
 
-            // 3-Destination Navigation Row
             val navLabel = stringResource(R.string.dock_nav_label)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = navLabel },
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
+            NavigationBar(
+                modifier = Modifier.semantics { contentDescription = navLabel },
+                containerColor = colors.surfaceContainer,
             ) {
-                DockNavItem(
-                    tab = MainTab.HOME,
-                    label = stringResource(R.string.dock_home),
-                    iconRes = R.drawable.ic_home,
-                    isSelected = activeTab == MainTab.HOME,
-                    onClick = { onSelectTab(MainTab.HOME) },
-                    modifier = Modifier.weight(1f),
-                )
-                DockNavItem(
-                    tab = MainTab.HISTORY,
-                    label = stringResource(R.string.dock_history),
-                    iconRes = R.drawable.ic_book,
-                    isSelected = activeTab == MainTab.HISTORY,
-                    onClick = { onSelectTab(MainTab.HISTORY) },
-                    modifier = Modifier.weight(1f),
-                )
-                DockNavItem(
-                    tab = MainTab.REMINDERS,
-                    label = stringResource(R.string.dock_reminders),
-                    iconRes = R.drawable.ic_bell,
-                    isSelected = activeTab == MainTab.REMINDERS,
-                    onClick = { onSelectTab(MainTab.REMINDERS) },
-                    modifier = Modifier.weight(1f),
-                )
+                for (tab in MainTab.entries) {
+                    val (labelRes, iconRes) = when (tab) {
+                        MainTab.HOME -> R.string.dock_home to R.drawable.ic_home
+                        MainTab.HISTORY -> R.string.dock_history to R.drawable.ic_book
+                        MainTab.REMINDERS -> R.string.dock_reminders to R.drawable.ic_bell
+                    }
+                    NavigationBarItem(
+                        selected = activeTab == tab,
+                        onClick = { onSelectTab(tab) },
+                        modifier = Modifier.testTag("dockTab:${tab.name.lowercase()}"),
+                        icon = { Icon(painterResource(iconRes), contentDescription = null) },
+                        label = { Text(stringResource(labelRes), textAlign = TextAlign.Center) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = colors.secondaryContainer,
+                            selectedIconColor = colors.onSecondaryContainer,
+                            selectedTextColor = colors.onSurface,
+                        ),
+                    )
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DockNavItem(
-    tab: MainTab,
-    label: String,
-    iconRes: Int,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+internal fun LedgerTopBar(
+    title: String,
+    onBack: (() -> Unit)? = null,
+    backLabel: String = stringResource(R.string.ledger_back),
+    backEnabled: Boolean = true,
+    backModifier: Modifier = Modifier,
+    subtitle: String? = null,
+    subtitleModifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
 ) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
-    val containerColor = if (isSelected) semanticColors.wash else Color.Transparent
-    val contentColor = if (isSelected) semanticColors.action else semanticColors.ink
+    val fontScale = LocalDensity.current.fontScale
+    TopAppBar(
+        title = {
+            Column {
+                Text(
+                    text = title,
+                    modifier = Modifier.semantics { heading() },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        modifier = subtitleModifier,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        },
+        navigationIcon = {
+            if (onBack != null) {
+                IconButton(onClick = onBack, enabled = backEnabled, modifier = backModifier) {
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = backLabel)
+                }
+            }
+        },
+        actions = actions,
+        expandedHeight = 64.dp + 40.dp * (fontScale - 1f).coerceAtLeast(0f),
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+    )
+}
 
-    Box(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(containerColor)
-            .selectable(
-                selected = isSelected,
-                role = Role.Tab,
-                onClick = onClick,
-            )
-            .testTag("dockTab:${tab.name.lowercase()}")
-            .padding(vertical = 6.dp, horizontal = 4.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 12.sp,
-                ),
-                color = contentColor,
-                textAlign = TextAlign.Center,
-            )
-        }
+@Composable
+internal fun LedgerSettingsAction(onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.testTag("homeOpenSettings")) {
+        Icon(
+            painter = painterResource(R.drawable.ic_settings),
+            contentDescription = stringResource(R.string.backup_settings),
+        )
     }
 }
 
@@ -236,11 +204,7 @@ enum class NoticeTone {
     Success;
 }
 
-/**
- * Concept C Notice View.
- *
- * 3dp start edge, 6dp corner radius, 12dp padding.
- */
+/** Inline feedback with a semantic container and a live announcement. */
 @Composable
 fun NoticeBanner(
     title: String,
@@ -248,53 +212,28 @@ fun NoticeBanner(
     description: String? = null,
     tone: NoticeTone = NoticeTone.Info,
 ) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
-
-    val (surfaceColor, edgeColor, textColor) = when (tone) {
-        NoticeTone.Info -> Triple(semanticColors.wash, semanticColors.action, semanticColors.ink)
-        NoticeTone.Warning -> Triple(semanticColors.warningSurface, semanticColors.warningEdge, semanticColors.onWarning)
-        NoticeTone.Danger -> Triple(semanticColors.dangerSurface, semanticColors.dangerEdge, semanticColors.onDanger)
-        NoticeTone.Success -> Triple(semanticColors.successSurface, semanticColors.successEdge, semanticColors.onSuccess)
+    val colors = MaterialTheme.colorScheme
+    val semantic = LocalVehicleLogSemanticColors.current
+    val (container, content) = when (tone) {
+        NoticeTone.Info -> colors.secondaryContainer to colors.onSecondaryContainer
+        NoticeTone.Warning -> colors.tertiaryContainer to colors.onTertiaryContainer
+        NoticeTone.Danger -> colors.errorContainer to colors.onErrorContainer
+        NoticeTone.Success -> semantic.successSurface to semantic.onSuccess
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(NoticeShape)
-            .background(surfaceColor)
-            .border(BorderStroke(1.dp, edgeColor.copy(alpha = 0.5f)), NoticeShape)
-            .semantics { liveRegion = LiveRegionMode.Polite },
+    Surface(
+        modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = MaterialTheme.shapes.medium,
+        color = container,
+        contentColor = content,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min),
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // 3dp logical start edge
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(edgeColor),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = textColor,
-                )
-                if (!description.isNullOrBlank()) {
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = textColor.copy(alpha = 0.9f),
-                    )
-                }
+            Text(text = title, style = MaterialTheme.typography.titleSmall)
+            if (!description.isNullOrBlank()) {
+                Text(text = description, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -315,19 +254,16 @@ fun StickyFormFooter(
     actionTestTag: String = "formActionSave",
     cancelTestTag: String = "formActionCancel",
 ) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .imePadding(),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, semanticColors.rule),
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Button(
@@ -454,8 +390,7 @@ fun EntrySelectorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier.testTag("entrySelectorSheet"),
     ) {
         Column(
@@ -599,8 +534,7 @@ fun VehicleSwitcherSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier.testTag("vehicleSwitcherSheet"),
     ) {
         Column(

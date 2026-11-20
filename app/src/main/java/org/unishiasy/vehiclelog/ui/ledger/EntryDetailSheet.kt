@@ -80,8 +80,7 @@ internal fun EntryDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.testTag("entryDetailSheet"),
     ) {
         Column(

@@ -6,7 +6,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -31,12 +30,13 @@ class VehicleLogThemeTest {
     }
 
     @Test
-    fun shapesEliminateOversizedPillButtons() {
-        val mediumCorner = (VehicleLogShapes.medium as RoundedCornerShape).topStart
-        val largeCorner = (VehicleLogShapes.large as RoundedCornerShape).topStart
-        assertEquals(8.dp, mediumCorner.toPx(androidx.compose.ui.geometry.Size(100f, 100f), androidx.compose.ui.unit.Density(1f)).dp)
-        assertEquals(12.dp, largeCorner.toPx(androidx.compose.ui.geometry.Size(100f, 100f), androidx.compose.ui.unit.Density(1f)).dp)
-        assertNotEquals(28.dp, mediumCorner.toPx(androidx.compose.ui.geometry.Size(100f, 100f), androidx.compose.ui.unit.Density(1f)).dp)
+    fun cardAndModalCornersUseDistinctMaterialRoles() {
+        val size = androidx.compose.ui.geometry.Size(100f, 100f)
+        val density = androidx.compose.ui.unit.Density(1f)
+        assertEquals(12.dp, (VehicleLogShapes.medium as RoundedCornerShape).topStart.toPx(size, density).dp)
+        assertEquals(28.dp, (VehicleLogShapes.extraLarge as RoundedCornerShape).topStart.toPx(size, density).dp)
+        assertEquals(28.dp, SheetShape.topStart.toPx(size, density).dp)
+        assertEquals(0.dp, SheetShape.bottomStart.toPx(size, density).dp)
     }
 
     @Test

@@ -100,6 +100,7 @@ import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.components.AppBottomDock
 import org.unishiasy.vehiclelog.ui.components.StickyFormFooter
 import org.unishiasy.vehiclelog.ui.components.EntrySelectorSheet
@@ -349,6 +350,13 @@ private fun HistoryView(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(
+                title = stringResource(R.string.ledger_title),
+                subtitle = vehicle.displayLabel,
+                onBack = ledger::back,
+            )
+        },
         bottomBar = bottomBar,
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
@@ -358,39 +366,7 @@ private fun HistoryView(
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues),
         ) {
-            // Notebook Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                IconButton(onClick = ledger::back, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_back),
-                        contentDescription = stringResource(R.string.ledger_back),
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.ledger_title),
-                        modifier = Modifier.semantics { heading() },
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        vehicle.displayLabel,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            textDirection = TextDirection.ContentOrRtl,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
-                }
-            }
+
 
             // Notebook Segmented Tabs (History & Report)
             PrimaryTabRow(
@@ -873,6 +849,14 @@ private fun EntryFormScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(
+                title = stringResource(screenTitleRes),
+                subtitle = vehicle.displayLabel,
+                onBack = ledger::back,
+                backLabel = stringResource(R.string.vehicle_cancel),
+            )
+        },
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             StickyFormFooter(
@@ -893,36 +877,7 @@ private fun EntryFormScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Form Top Bar
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                IconButton(onClick = ledger::back, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_back),
-                        contentDescription = stringResource(R.string.vehicle_cancel),
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(screenTitleRes),
-                        Modifier.semantics { heading() },
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        vehicle.displayLabel,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            textDirection = TextDirection.ContentOrRtl,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
-                }
-            }
+
 
             EntryForm(draft, state, ledger)
         }

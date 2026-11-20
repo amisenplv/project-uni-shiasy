@@ -143,8 +143,7 @@ internal fun OdometerSheet(
     ModalBottomSheet(
         onDismissRequest = { if (!draft.saving) onDismiss() },
         shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.testTag("odometerSheet"),
     ) {
         Column(

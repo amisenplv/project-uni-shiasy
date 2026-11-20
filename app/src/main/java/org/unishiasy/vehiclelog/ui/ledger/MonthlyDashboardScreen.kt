@@ -25,7 +25,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -61,6 +60,7 @@ import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.JalaliMonth
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
 
@@ -79,6 +79,15 @@ internal fun MonthlyDashboardScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            LedgerTopBar(
+                title = stringResource(R.string.dashboard_title),
+                subtitle = vehicleLabel,
+                subtitleModifier = Modifier.testTag("dashboardVehicle"),
+                onBack = onBack,
+                backLabel = stringResource(R.string.dashboard_back),
+            )
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         LazyColumn(
@@ -91,46 +100,7 @@ internal fun MonthlyDashboardScreen(
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(
-                            onClick = onBack,
-                            modifier = Modifier.heightIn(min = 48.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_arrow_back),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                stringResource(R.string.dashboard_back),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
-                    Text(
-                        stringResource(R.string.dashboard_title),
-                        Modifier.semantics { heading() },
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        vehicleLabel,
-                        Modifier.testTag("dashboardVehicle"),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            textDirection = TextDirection.ContentOrRtl,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
-                }
-            }
+
 
             when {
                 state.failed -> item {
@@ -160,60 +130,38 @@ internal fun MonthlyDashboardScreen(
                     }
                     if (state.selectedMonth != null) {
                         item {
-                            // Summary Card with 4dp Top Edge (Receipt style matching Concept C)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = VehicleLogShapes.large,
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                border = BorderStroke(1.dp, semanticColors.rule),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                ),
                             ) {
-                                Column(Modifier.fillMaxWidth()) {
-                                    // 4dp Action Top Edge
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .background(MaterialTheme.colorScheme.primary)
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.dashboard_total_label),
+                                        Modifier.semantics { heading() },
+                                        style = MaterialTheme.typography.titleSmall,
                                     )
-                                    Column(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                                    ) {
-                                        Text(
-                                            stringResource(R.string.dashboard_total_label),
-                                            Modifier.semantics { heading() },
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Text(
-                                            tomanLabel(monthReport?.totals?.totalRials ?: BigInteger.ZERO),
-                                            Modifier.testTag("dashboardTotal"),
-                                            style = MaterialTheme.typography.displayMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            ),
-                                        )
-                                        HorizontalDivider(color = semanticColors.rule)
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                        ) {
-                                            Text(
-                                                stringResource(R.string.dashboard_entry_count, (monthReport?.totals?.entryCount ?: 0).persian()),
-                                                Modifier.testTag("dashboardEntryCount"),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                            Text(
-                                                stringResource(R.string.dashboard_unpriced_count, (monthReport?.totals?.unpricedEntryCount ?: 0).persian()),
-                                                Modifier.testTag("dashboardUnpricedCount"),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
+                                    Text(
+                                        tomanLabel(monthReport?.totals?.totalRials ?: BigInteger.ZERO),
+                                        Modifier.testTag("dashboardTotal"),
+                                        style = MaterialTheme.typography.displayMedium,
+                                    )
+                                    HorizontalDivider()
+                                    Text(
+                                        stringResource(R.string.dashboard_entry_count, (monthReport?.totals?.entryCount ?: 0).persian()),
+                                        Modifier.testTag("dashboardEntryCount"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    Text(
+                                        stringResource(R.string.dashboard_unpriced_count, (monthReport?.totals?.unpricedEntryCount ?: 0).persian()),
+                                        Modifier.testTag("dashboardUnpricedCount"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
                                 }
                             }
                         }

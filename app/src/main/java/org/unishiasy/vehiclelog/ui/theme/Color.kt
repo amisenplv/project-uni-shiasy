@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 /**
  * Design system color palette and semantic tokens for Vehicle Ledger Concept C v2.
  *
- * Strictly matches design/vehicle-ledger-concept-c-v2/DESIGN_SYSTEM.md.
+ * Brand colors and status colors shared with the Material 3 color schemes.
  */
 object VehicleLogColors {
     // Light Palette
@@ -176,10 +176,10 @@ internal val VehicleLogLightColorScheme = lightColorScheme(
     onSecondary = VehicleLogColors.OnActionLight,
     secondaryContainer = VehicleLogColors.WashLight,
     onSecondaryContainer = VehicleLogColors.InkLight,
-    tertiary = VehicleLogColors.ActionLight,
-    onTertiary = VehicleLogColors.OnActionLight,
-    tertiaryContainer = VehicleLogColors.WashLight,
-    onTertiaryContainer = VehicleLogColors.InkLight,
+    tertiary = VehicleLogColors.OnWarningLight,
+    onTertiary = VehicleLogColors.WarningSurfaceLight,
+    tertiaryContainer = VehicleLogColors.WarningSurfaceLight,
+    onTertiaryContainer = VehicleLogColors.OnWarningLight,
     error = VehicleLogColors.DangerLight,
     onError = VehicleLogColors.OnDangerLight,
     errorContainer = VehicleLogColors.ErrorBackgroundLight,
@@ -190,8 +190,20 @@ internal val VehicleLogLightColorScheme = lightColorScheme(
     onSurface = VehicleLogColors.InkLight,
     surfaceVariant = VehicleLogColors.WashLight,
     onSurfaceVariant = VehicleLogColors.MutedInkLight,
-    outline = VehicleLogColors.RuleLight,
-    outlineVariant = VehicleLogColors.ControlOutlineLight,
+    outline = VehicleLogColors.ControlOutlineLight,
+    outlineVariant = VehicleLogColors.RuleLight,
+    surfaceTint = VehicleLogColors.ActionLight,
+    inverseSurface = VehicleLogColors.InkLight,
+    inverseOnSurface = VehicleLogColors.CanvasLight,
+    inversePrimary = VehicleLogColors.ActionDark,
+    scrim = Color.Black,
+    surfaceBright = VehicleLogColors.SurfaceLight,
+    surfaceDim = Color(0xFFD6E2E5),
+    surfaceContainerLowest = VehicleLogColors.SurfaceLight,
+    surfaceContainerLow = Color(0xFFF6FAFB),
+    surfaceContainer = Color(0xFFEAF1F3),
+    surfaceContainerHigh = Color(0xFFE3ECEF),
+    surfaceContainerHighest = Color(0xFFDCE8EB),
 )
 
 internal val VehicleLogDarkColorScheme = darkColorScheme(
@@ -203,10 +215,10 @@ internal val VehicleLogDarkColorScheme = darkColorScheme(
     onSecondary = VehicleLogColors.CanvasDark,
     secondaryContainer = VehicleLogColors.WashDark,
     onSecondaryContainer = VehicleLogColors.InkDark,
-    tertiary = VehicleLogColors.ActionDark,
-    onTertiary = VehicleLogColors.CanvasDark,
-    tertiaryContainer = VehicleLogColors.WashDark,
-    onTertiaryContainer = VehicleLogColors.InkDark,
+    tertiary = VehicleLogColors.OnWarningDark,
+    onTertiary = VehicleLogColors.WarningSurfaceDark,
+    tertiaryContainer = VehicleLogColors.WarningSurfaceDark,
+    onTertiaryContainer = VehicleLogColors.OnWarningDark,
     error = VehicleLogColors.DangerDark,
     onError = VehicleLogColors.OnDangerDark,
     errorContainer = VehicleLogColors.ErrorBackgroundDark,
@@ -217,6 +229,18 @@ internal val VehicleLogDarkColorScheme = darkColorScheme(
     onSurface = VehicleLogColors.InkDark,
     surfaceVariant = VehicleLogColors.WashDark,
     onSurfaceVariant = VehicleLogColors.MutedInkDark,
-    outline = VehicleLogColors.RuleDark,
-    outlineVariant = VehicleLogColors.ControlOutlineDark,
+    outline = VehicleLogColors.ControlOutlineDark,
+    outlineVariant = VehicleLogColors.RuleDark,
+    surfaceTint = VehicleLogColors.ActionDark,
+    inverseSurface = VehicleLogColors.InkDark,
+    inverseOnSurface = VehicleLogColors.CanvasDark,
+    inversePrimary = VehicleLogColors.ActionLight,
+    scrim = Color.Black,
+    surfaceBright = Color(0xFF31454C),
+    surfaceDim = VehicleLogColors.CanvasDark,
+    surfaceContainerLowest = Color(0xFF0B171B),
+    surfaceContainerLow = Color(0xFF15252B),
+    surfaceContainer = VehicleLogColors.SurfaceDark,
+    surfaceContainerHigh = Color(0xFF21353B),
+    surfaceContainerHighest = Color(0xFF293E45),
 )
