@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -118,6 +119,26 @@ class AppJourneyRobolectricTest {
             }
         }
         compose.waitForIdle()
+    }
+
+    @Test
+    fun newExpenseClosesFromTheLeftOfTheMaterialTopBarWithoutSaving() {
+        mountHost()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("homeAddExpense").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("homeAddExpense").performScrollTo().performClick()
+
+        val close = compose.onNodeWithContentDescription(context.getString(R.string.ledger_close_new_entry))
+        val title = compose.onNodeWithText(context.getString(R.string.ledger_add))
+        close.assertIsDisplayed()
+        assertTrue(close.fetchSemanticsNode().boundsInRoot.right <= title.fetchSemanticsNode().boundsInRoot.left)
+        compose.onNodeWithText("انصراف").assertDoesNotExist()
+        compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
+
+        close.performClick()
+        compose.waitUntil(5_000) { ledgerVm.state.value.draft == null && ledgerVm.state.value.entries?.isEmpty() == true }
+        compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
     }
 
     @Test

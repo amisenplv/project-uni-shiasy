@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -54,6 +55,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -185,6 +187,36 @@ internal fun LedgerTopBar(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
     )
+}
+
+@Composable
+internal fun HeaderCloseButton(
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    label: String = stringResource(R.string.app_close),
+) {
+    IconButton(onClick = onClose, modifier = modifier.size(48.dp), enabled = enabled) {
+        Icon(painterResource(R.drawable.ic_close), contentDescription = label)
+    }
+}
+
+@Composable
+internal fun DismissibleHeading(
+    title: String,
+    onClose: () -> Unit,
+    closeModifier: Modifier = Modifier,
+    closeEnabled: Boolean = true,
+    style: TextStyle = LocalTextStyle.current,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, Modifier.weight(1f).semantics { heading() }, style = style)
+        HeaderCloseButton(onClose, modifier = closeModifier, enabled = closeEnabled)
+    }
 }
 
 @Composable
@@ -415,7 +447,7 @@ fun EntrySelectorSheet(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.vehicle_cancel),
+                        contentDescription = stringResource(R.string.app_close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
@@ -559,7 +591,7 @@ fun VehicleSwitcherSheet(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.vehicle_cancel),
+                        contentDescription = stringResource(R.string.app_close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )

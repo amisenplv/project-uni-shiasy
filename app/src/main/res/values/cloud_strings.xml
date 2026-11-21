@@ -27,7 +27,6 @@
     <string name="cloud_loading">در حال بررسی…</string>
     <string name="cloud_sending">در حال آماده‌سازی و ارسال پشتیبان…</string>
     <string name="cloud_cancel_upload">لغو ارسال</string>
-    <string name="cloud_dismiss">انصراف</string>
     <string name="cloud_recovery_title">کد بازیابی حساب</string>
     <string name="cloud_recovery_note">این کد یک‌بار نمایش داده می‌شود. آن را در جای امنی بیرون از برنامه نگه دارید.</string>
     <string name="cloud_recovery_done">کد را یادداشت کردم</string>

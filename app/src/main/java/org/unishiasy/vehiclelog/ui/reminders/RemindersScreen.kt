@@ -82,6 +82,8 @@ import org.unishiasy.vehiclelog.data.local.ReminderEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.DismissibleHeading
+import org.unishiasy.vehiclelog.ui.components.HeaderCloseButton
 import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
@@ -151,8 +153,11 @@ internal fun RemindersScreen(
             AlertDialog(
                 onDismissRequest = { if (!state.writing) pendingCancelId = null },
                 title = {
-                    Text(
-                        stringResource(R.string.reminder_cancel_confirm_title),
+                    DismissibleHeading(
+                        title = stringResource(R.string.reminder_cancel_confirm_title),
+                        onClose = { pendingCancelId = null },
+                        closeModifier = Modifier.testTag("reminderDismissCancel"),
+                        closeEnabled = !state.writing,
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     )
                 },
@@ -179,16 +184,6 @@ internal fun RemindersScreen(
                         Text(stringResource(R.string.reminder_cancel_confirm_action))
                     }
                 },
-                dismissButton = {
-                    OutlinedButton(
-                        onClick = { pendingCancelId = null },
-                        enabled = !state.writing,
-                        modifier = Modifier.heightIn(min = 48.dp).testTag("reminderDismissCancel"),
-                        shape = VehicleLogShapes.medium,
-                    ) {
-                        Text(stringResource(R.string.vehicle_cancel))
-                    }
-                },
             )
         }
     }
@@ -202,6 +197,15 @@ internal fun RemindersScreen(
                 onBack = viewModel::back,
                 backEnabled = !state.writing,
                 backModifier = Modifier.testTag("remindersBack"),
+                actions = {
+                    if (state.draft.editing) {
+                        HeaderCloseButton(
+                            onClose = viewModel::cancelEditing,
+                            modifier = Modifier.testTag("reminderCancelEdit"),
+                            enabled = !state.writing,
+                        )
+                    }
+                },
             )
         },
         bottomBar = bottomBar,
@@ -601,23 +605,6 @@ private fun ReminderForm(
                         color = MaterialTheme.colorScheme.onPrimary,
                     ),
                 )
-            }
-
-            if (draft.editing) {
-                OutlinedButton(
-                    onClick = viewModel::cancelEditing,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .testTag("reminderCancelEdit"),
-                    enabled = enabled,
-                    shape = VehicleLogShapes.medium,
-                ) {
-                    Text(
-                        text = stringResource(R.string.vehicle_cancel),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                }
             }
 
             if (state.actionId == null) {

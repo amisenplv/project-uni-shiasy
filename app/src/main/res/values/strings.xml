@@ -25,12 +25,13 @@
     <string name="vehicle_save">ذخیره خودرو</string>
     <string name="vehicle_saving">در حال ذخیره…</string>
     <string name="vehicle_saved">خودرو ذخیره شد.</string>
-    <string name="vehicle_cancel">انصراف</string>
+    <string name="app_close">بستن</string>
     <string name="vehicle_not_found">این خودرو دیگر در فهرست نیست. به فهرست برگردید.</string>
     <string name="vehicle_save_failed">خودرو ذخیره نشد. دوباره تلاش کنید.</string>
     <string name="ledger_open">ثبت و ویرایش هزینه‌های %1$s</string>
     <string name="ledger_title">هزینه‌ها و سرویس‌ها</string>
     <string name="ledger_add">ثبت هزینه یا سرویس</string>
+    <string name="ledger_close_new_entry">بستن فرم ثبت هزینه یا سرویس</string>
     <string name="ledger_edit">ویرایش ثبت</string>
     <string name="ledger_back">بازگشت به خودروها</string>
     <string name="ledger_recent">ثبت‌های اخیر</string>

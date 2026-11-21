@@ -210,10 +210,10 @@ class VehicleSetupTest {
         name.performScrollTo().performTouchInput { click() }.performTextInput(label)
         year.performScrollTo().performTouchInput { click() }.performTextInput("۱۴۰")
         compose.waitUntil(5_000) { keyboardShown(year) }
-        for (action in listOf(R.string.vehicle_save, R.string.vehicle_cancel)) {
-            assertTouchTarget(action)
-            assertTrue(keyboardShown(year))
-        }
+        assertTouchTarget(R.string.vehicle_save)
+        assertTrue(keyboardShown(year))
+        assertTouchTarget(compose.onNodeWithTag("vehicleCancel"), scroll = false)
+        assertTrue(keyboardShown(year))
         capture("manual-actions")
         click(R.string.vehicle_save)
         assertVisible(R.string.vehicle_calendar_required)
@@ -326,12 +326,14 @@ class VehicleSetupTest {
         assertVisible(R.string.vehicle_year_invalid)
     }
 
-    private fun assertTouchTarget(id: Int, scroll: Boolean = true) {
-        val node = compose.onNodeWithText(context.getString(id))
+    private fun assertTouchTarget(id: Int, scroll: Boolean = true) =
+        assertTouchTarget(compose.onNodeWithText(context.getString(id)), scroll)
+
+    private fun assertTouchTarget(node: SemanticsNodeInteraction, scroll: Boolean) {
         if (scroll) node.performScrollTo()
         val bounds = node.assertIsDisplayed().assertHasClickAction().fetchSemanticsNode().touchBoundsInRoot
         val minimum = 48 * context.resources.displayMetrics.density
-        assertTrue("Expected at least 48 dp for ${context.getString(id)}: $bounds",
+        assertTrue("Expected a touch target of at least 48 dp: $bounds",
             bounds.width >= minimum && bounds.height >= minimum)
     }
 

@@ -100,6 +100,8 @@ import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.DismissibleHeading
+import org.unishiasy.vehiclelog.ui.components.HeaderCloseButton
 import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.components.AppBottomDock
 import org.unishiasy.vehiclelog.ui.components.StickyFormFooter
@@ -853,8 +855,14 @@ private fun EntryFormScreen(
             LedgerTopBar(
                 title = stringResource(screenTitleRes),
                 subtitle = vehicle.displayLabel,
-                onBack = ledger::back,
-                backLabel = stringResource(R.string.vehicle_cancel),
+                actions = {
+                    HeaderCloseButton(
+                        onClose = ledger::back,
+                        modifier = Modifier.testTag("ledgerCloseEntry"),
+                        enabled = !state.saving,
+                        label = stringResource(if (draft.editing) R.string.app_close else R.string.ledger_close_new_entry),
+                    )
+                },
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -886,7 +894,11 @@ private fun EntryFormScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerViewModel) {
+private fun EntryForm(
+    draft: EntryDraft,
+    state: LedgerUiState,
+    ledger: LedgerViewModel,
+) {
     val enabled = !state.saving
     val focusManager = LocalFocusManager.current
     val fontScale = LocalDensity.current.fontScale
@@ -1144,20 +1156,6 @@ private fun EntryForm(draft: EntryDraft, state: LedgerUiState, ledger: LedgerVie
             )
         }
     }
-
-    OutlinedButton(
-        onClick = ledger::back,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        enabled = enabled,
-        shape = VehicleLogShapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Text(
-            stringResource(R.string.vehicle_cancel),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
 }
 
 @Composable
@@ -1272,8 +1270,11 @@ private fun DeleteConfirmationDialog(
     AlertDialog(
         onDismissRequest = { if (!deleting) onDismiss() },
         title = {
-            Text(
-                stringResource(R.string.delete_confirm_sheet_title),
+            DismissibleHeading(
+                title = stringResource(R.string.delete_confirm_sheet_title),
+                onClose = onDismiss,
+                closeModifier = Modifier.testTag("ledgerCancelDelete"),
+                closeEnabled = !deleting,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             )
         },
@@ -1295,17 +1296,6 @@ private fun DeleteConfirmationDialog(
                 ),
             ) {
                 Text(stringResource(if (deleting) R.string.ledger_deleting else R.string.delete_confirm_sheet_action))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                enabled = !deleting,
-                modifier = Modifier.testTag("ledgerCancelDelete").heightIn(min = 48.dp),
-                shape = VehicleLogShapes.medium,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            ) {
-                Text(stringResource(R.string.vehicle_cancel))
             }
         },
     )

@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -57,6 +56,7 @@ import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.local.OdometerReadingEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.DismissibleHeading
 import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.home.OdometerDraft
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
@@ -102,8 +102,11 @@ internal fun OdometerSheet(
         AlertDialog(
             onDismissRequest = { if (!draft.saving) onCancelDeleteReading() },
             title = {
-                Text(
-                    stringResource(R.string.odometer_delete_confirm_title),
+                DismissibleHeading(
+                    title = stringResource(R.string.odometer_delete_confirm_title),
+                    onClose = onCancelDeleteReading,
+                    closeModifier = Modifier.testTag("odometerCancelDelete"),
+                    closeEnabled = !draft.saving,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 )
             },
@@ -125,16 +128,6 @@ internal fun OdometerSheet(
                     ),
                 ) {
                     Text(stringResource(R.string.ledger_delete))
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = onCancelDeleteReading,
-                    enabled = !draft.saving,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("odometerCancelDelete"),
-                    shape = VehicleLogShapes.medium,
-                ) {
-                    Text(stringResource(R.string.vehicle_cancel))
                 }
             },
         )
@@ -171,7 +164,7 @@ internal fun OdometerSheet(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.vehicle_cancel),
+                        contentDescription = stringResource(R.string.app_close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )

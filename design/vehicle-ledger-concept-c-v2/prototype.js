@@ -72,11 +72,11 @@ if (scene === "fuel-keyboard") {
   values.amount = "۱۸۰٬۰۰۰";
 }
 
-function toolbar(title, back = false) {
-  return `<header class="toolbar">${back ? iconButton("back","بازگشت","back") : ""}
+function toolbar(title, back = false, closeExpense = false) {
+  return `<header class="toolbar">${back && !closeExpense ? iconButton("back","بازگشت","back") : ""}
     <div class="subject"><h1 tabindex="-1" id="screen-title">${title}</h1>
     ${back ? `<small><bdi>${vehicles[selected].name}</bdi></small>` : ""}</div>
-    ${back ? "" : iconButton("go:settings","تنظیمات","settings")}</header>`;
+    ${closeExpense ? iconButton("back","بستن فرم ثبت هزینه","close") : back ? "" : iconButton("go:settings","تنظیمات","settings")}</header>`;
 }
 function phone(body) {
   return `<div class="phone"><div class="status" aria-hidden="true"><span>۹:۴۱</span><svg viewBox="0 0 32 12" fill="currentColor"><path d="M1 10h9V1zM12 10h7V3zM22 2h8v8h-8zm8 2h2v4h-2z"/></svg></div>
@@ -148,7 +148,7 @@ function entry() {
   const fields = fuel
     ? `<section class="form-surface pair" aria-label="اطلاعات سوخت‌گیری">${amount}${field("volume","حجم سوخت (لیتر)","decimal","۴۰",true)}</section>`
     : `<section class="form-surface stack" aria-label="اطلاعات ثبت">${categoryField()}${amount}</section>`;
-  return toolbar(title,true) + content(`<form class="stack entry-group" id="entry-form" novalidate>${editRecord && fuel ? categoryField() : ""}${fields}${details()}${editRecord ? action("delete","حذف ثبت","text-button danger") : ""}</form>`,"entry-content") +
+  return toolbar(title,true,mode === "expense" && !editRecord) + content(`<form class="stack entry-group" id="entry-form" novalidate>${editRecord && fuel ? categoryField() : ""}${fields}${details()}${editRecord ? action("delete","حذف ثبت","text-button danger") : ""}</form>`,"entry-content") +
     `<div class="footer">${action("save",editRecord ? "ذخیره تغییرات" : title,"primary")}</div>` + keypad();
 }
 

@@ -606,7 +606,7 @@ class LedgerEntryUiTest {
         compose.waitUntil(5_000) { ledger.state.value.draft?.id == targetId }
         compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
 
-        compose.onNodeWithText(context.getString(R.string.vehicle_cancel)).performScrollTo().performClick()
+        compose.onNodeWithTag("ledgerCloseEntry").assertIsDisplayed().performClick()
         compose.waitUntil(5_000) { ledger.state.value.draft == null }
 
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()

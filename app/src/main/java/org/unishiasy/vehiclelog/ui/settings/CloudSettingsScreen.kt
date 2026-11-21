@@ -52,6 +52,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
 import org.unishiasy.vehiclelog.R
+import org.unishiasy.vehiclelog.ui.components.DismissibleHeading
 import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.data.cloud.CloudBinding
 import org.unishiasy.vehiclelog.data.cloud.CloudIssue
@@ -214,7 +215,9 @@ internal fun CloudSettingsScreen(viewModel: CloudSettingsViewModel, onBack: () -
     state.restoreSelection?.snapshot?.let { snapshot ->
         AlertDialog(
             onDismissRequest = viewModel::dismissRestore,
-            title = { Text(stringResource(R.string.cloud_restore_title)) },
+            title = {
+                DismissibleHeading(stringResource(R.string.cloud_restore_title), onClose = viewModel::dismissRestore)
+            },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.cloud_restore_ack, cloudDate(snapshot.time)))
@@ -228,11 +231,6 @@ internal fun CloudSettingsScreen(viewModel: CloudSettingsViewModel, onBack: () -
             confirmButton = {
                 TextButton(viewModel::confirmRestore, Modifier.heightIn(min = 48.dp).testTag("cloudConfirmRestore")) {
                     Text(stringResource(R.string.cloud_restore_confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(viewModel::dismissRestore, Modifier.heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.cloud_dismiss))
                 }
             },
             properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
@@ -329,10 +327,9 @@ private enum class CredentialsMode(val label: Int) {
 private fun CloudConfirmation(title: Int, text: String, action: Int, confirm: () -> Unit, dismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text(stringResource(title)) },
+        title = { DismissibleHeading(stringResource(title), onClose = dismiss) },
         text = { Text(text) },
         confirmButton = { TextButton(confirm, Modifier.heightIn(min = 48.dp)) { Text(stringResource(action)) } },
-        dismissButton = { TextButton(dismiss, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cloud_dismiss)) } },
     )
 }
 

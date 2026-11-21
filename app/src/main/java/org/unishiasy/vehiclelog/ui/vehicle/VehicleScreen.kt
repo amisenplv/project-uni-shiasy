@@ -74,6 +74,7 @@ import org.unishiasy.vehiclelog.data.catalog.VehicleCatalog
 import org.unishiasy.vehiclelog.data.catalog.VehicleCatalogEntry
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.HeaderCloseButton
 import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.components.LedgerSettingsAction
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
@@ -97,14 +98,18 @@ internal fun VehicleScreen(
             if (draft != null) {
                 LedgerTopBar(
                     title = stringResource(if (draft.id == null) R.string.vehicle_add else R.string.vehicle_edit),
-                    onBack = viewModel::cancel,
-                    backLabel = stringResource(R.string.vehicle_cancel),
+                    actions = {
+                        HeaderCloseButton(
+                            onClose = viewModel::cancel,
+                            modifier = Modifier.testTag("vehicleCancel"),
+                            enabled = !state.saving,
+                        )
+                    },
                 )
             } else {
                 LedgerTopBar(
                     title = stringResource(if (state.managingList) R.string.vehicle_list_title else R.string.app_name),
                     onBack = if (state.managingList) viewModel::closeManagement else null,
-                    backLabel = stringResource(R.string.vehicle_cancel),
                     backModifier = Modifier.testTag("vehicleManageBack"),
                 ) {
                     if (onOpenSettings != null) LedgerSettingsAction(onOpenSettings)
@@ -422,7 +427,7 @@ private fun VehicleForm(draft: VehicleDraft, state: VehicleUiState, viewModel: V
 
     Spacer(Modifier.height(8.dp))
 
-    // Sticky submit / cancel buttons
+    // Submit
     Button(
         onClick = viewModel::save,
         enabled = enabled,
@@ -436,19 +441,6 @@ private fun VehicleForm(draft: VehicleDraft, state: VehicleUiState, viewModel: V
         Text(
             stringResource(if (enabled) R.string.vehicle_save else R.string.vehicle_saving),
             style = MaterialTheme.typography.labelLarge,
-        )
-    }
-    OutlinedButton(
-        onClick = viewModel::cancel,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("vehicleCancel"),
-        shape = VehicleLogShapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Text(
-            stringResource(R.string.vehicle_cancel),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
