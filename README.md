@@ -6,13 +6,13 @@ Vehicle Ledger is a Persian-first Android app for drivers in Iran. It keeps vehi
 
 ## Build and run
 
-Install JDK 17 and Android SDK Platform 36, Build Tools 36.0.0, and Platform Tools. The app supports Android 8.0 (API 26) and later. Open the repository root in Android Studio and select JDK 17 for Gradle, or run these commands from the repository root after setting `JAVA_HOME` and `ANDROID_HOME` for your machine.
+Install JDK 25 for the Gradle daemon and Android SDK Platform 36, Build Tools 36.0.0, and Platform Tools. The app supports Android 8.0 (API 26) and later. Open the repository root in Android Studio, or run the following from the repository root after setting `JAVA_HOME` and `ANDROID_HOME` for your machine.
 
 ```sh
 ./gradlew :app:assembleDebug :app:testDebugUnitTest
 ```
 
-The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk` and uses application ID `org.amirariana.vehiclelog.debug`. For emulator and physical-device checks, including what the device test task installs, see the [Android setup guide](docs/delivery/ANDROID_SETUP.md) and [test strategy](docs/delivery/TEST_STRATEGY.md).
+The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk` and uses application ID `org.mewlog.vehiclelog.debug`. For emulator and physical-device checks, including what the device test task installs, see the [Android setup guide](docs/delivery/ANDROID_SETUP.md) and [test strategy](docs/delivery/TEST_STRATEGY.md).
 
 The default build needs no account or backend. The optional recovery service and Android cloud integration are for local tests with synthetic data. Use the [local backend guide](server/README.md) if you need to develop or test that integration.
 

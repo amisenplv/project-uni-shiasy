@@ -16,13 +16,9 @@ for option in "$@"; do
     esac
 done
 
-: "${JAVA_HOME:?Set JAVA_HOME to a local JDK 17 installation}"
+: "${JAVA_HOME:?Set JAVA_HOME to a local JDK installation}"
 : "${ANDROID_HOME:?Set ANDROID_HOME to the local Android SDK}"
 [[ -x "$JAVA_HOME/bin/java" && -x "$JAVA_HOME/bin/javac" ]] || fail 'JAVA_HOME must point to a JDK.'
-case "$("$JAVA_HOME/bin/javac" -version 2>&1)" in
-    'javac 17'|'javac 17.'*) ;;
-    *) fail 'Gradle 8.13 for this project requires JDK 17.' ;;
-esac
 
 platform="$ANDROID_HOME/platforms/android-36"
 if [[ ! -r "$platform/android.jar" || ! -r "$platform/package.xml" ]] ||

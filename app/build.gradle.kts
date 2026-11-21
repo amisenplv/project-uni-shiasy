@@ -1,6 +1,7 @@
+import com.android.build.api.variant.BuildConfigField
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
@@ -16,27 +17,17 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("boolean", "LOCAL_CLOUD_ENABLED", "false")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("debugConfig") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
+    val projectDebugKeystore = rootProject.file("debug.keystore")
+    if (projectDebugKeystore.isFile) {
+        signingConfigs.getByName("debug").storeFile = projectDebugKeystore
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("debugConfig")
             applicationIdSuffix = ".debug"
-            buildConfigField(
-                "boolean", "LOCAL_CLOUD_ENABLED",
-                (providers.gradleProperty("vehiclelogLocalCloud").orNull == "true").toString(),
-            )
         }
         release {
             isMinifyEnabled = true
@@ -53,7 +44,7 @@ android {
         buildConfig = true
     }
 
-    sourceSets.getByName("androidTest").assets.srcDir("schemas")
+    sourceSets.getByName("androidTest").assets.directories.add("schemas")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -63,6 +54,15 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+}
+
+androidComponents.onVariants { variant ->
+    val localCloudEnabled =
+        variant.buildType == "debug" && providers.gradleProperty("vehiclelogLocalCloud").orNull == "true"
+    requireNotNull(variant.buildConfigFields).put(
+        "LOCAL_CLOUD_ENABLED",
+        BuildConfigField("boolean", localCloudEnabled, null),
+    )
 }
 
 androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
@@ -81,12 +81,6 @@ androidComponents.onVariants(androidComponents.selector().withBuildType("release
             output.versionCode.set(versionCode)
             output.versionName.set(requestedName)
         }
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

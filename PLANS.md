@@ -11,6 +11,13 @@ All effort ranges are provisional and count focused engineering person-days. Bus
 
 For each milestone, record actual time, test commands and results, physical device model and OS, APK version, blockers, and the completion decision. The next milestone opens only after the applicable automated and physical checks pass.
 
+## Android build maintenance
+
+**2026-11-20.** Fixed debug signing after reproducing `:app:validateSigningDebug` failing on a missing repository-local `debug.keystore`. A checkout without that file now uses the standard Android debug signing configuration. Migrated the build to AGP 9.5.2's built-in Kotlin and public DSL with Gradle 9.6.0 and a JDK 25 daemon. Java and Kotlin still target JVM 17. See the [local setup guide](docs/delivery/ANDROID_SETUP.md).
+
+- Android Studio Gradle sync, `./gradlew help`, and `./gradlew build --dry-run` passed. The debug build, JVM tests, lint, and instrumented APK build passed directly and through `bash scripts/check-android.sh` with the local dependency cache. Lint reported 27 warnings and no errors. The JDK logged native-access warnings from Gradle and Robolectric.
+- `apksigner verify --verbose` passed for [the debug APK](app/build/outputs/apk/debug/app-debug.apk), version `0.1.0` (code 1), package `org.mewlog.vehiclelog.debug`. The instrumented APK contains Room schemas 1–4. Physical-device and emulator checks were not run for this build.
+
 ## M1. First signed APK
 
 **Status:** Complete. The signed install and in-place upgrade passed, the developer confirmed signed `0.1.1` offline startup, and the isolated clean-source debug build passed. Signed `0.1.0` offline startup is recorded as **Waived — Accepted Residual Risk**. M2–M7 have been re-estimated provisionally. **Original provisional effort:** 3–5 days. Actual focused time was not fully tracked.
