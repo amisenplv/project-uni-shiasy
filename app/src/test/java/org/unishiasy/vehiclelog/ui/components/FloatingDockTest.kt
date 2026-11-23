@@ -7,7 +7,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -66,16 +68,24 @@ class FloatingDockTest {
         compose.onNodeWithTag("dockTab:reminders").assertIsDisplayed()
         compose.onNodeWithTag("dockTab:tools").assertIsDisplayed()
 
+        // Active pill shows label for selected tab
         compose.onNodeWithText("خانه").assertIsDisplayed()
-        compose.onNodeWithText("سوابق").assertIsDisplayed()
-        compose.onNodeWithText("یادآورها").assertIsDisplayed()
-        compose.onNodeWithText("ابزارها").assertIsDisplayed()
 
+        // Touch targets satisfy >= 48dp accessibility constraint
+        compose.onNodeWithTag("dockTab:home").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("dockTab:home").assertWidthIsAtLeast(48.dp)
+        compose.onNodeWithTag("dockTab:tools").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("dockTab:tools").assertWidthIsAtLeast(48.dp)
+
+        // Select TOOLS tab
         compose.onNodeWithTag("dockTab:tools").performClick()
         assertEquals(MainTab.TOOLS, selectedTab)
+        compose.onNodeWithText("ابزارها").assertIsDisplayed()
 
+        // Select HISTORY tab
         compose.onNodeWithTag("dockTab:history").performClick()
         assertEquals(MainTab.HISTORY, selectedTab)
+        compose.onNodeWithText("سوابق").assertIsDisplayed()
     }
 
     @Test
