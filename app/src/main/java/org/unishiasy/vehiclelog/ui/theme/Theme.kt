@@ -8,7 +8,7 @@ import org.unishiasy.vehiclelog.ui.settings.ThemeMode
 
 @Composable
 fun VehicleLogTheme(
-    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    themeMode: ThemeMode = ThemeMode.DARK,
     darkTheme: Boolean = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false

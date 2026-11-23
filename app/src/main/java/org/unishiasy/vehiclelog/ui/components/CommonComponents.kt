@@ -1,5 +1,6 @@
 package org.unishiasy.vehiclelog.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -23,16 +24,21 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -42,6 +48,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.ui.theme.ButtonShape
@@ -70,75 +82,222 @@ import org.unishiasy.vehiclelog.ui.vehicle.toPersianYear
 enum class MainTab {
     HOME,
     HISTORY,
-    REMINDERS;
+    REMINDERS,
+    TOOLS;
 }
 
-/** Main destinations and the current destination's create action. */
+/** Main destinations. Screen actions use the Scaffold FAB slot. */
 @Composable
 fun AppBottomDock(
     activeTab: MainTab,
     onSelectTab: (MainTab) -> Unit,
-    onPrimaryAction: () -> Unit,
     modifier: Modifier = Modifier,
-    showPrimaryAction: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
-    Surface(
-        modifier = modifier.fillMaxWidth().testTag("appBottomDock"),
-        color = colors.surfaceContainer,
+    val navLabel = stringResource(R.string.dock_nav_label)
+    NavigationBar(
+        modifier = modifier.testTag("appBottomDock").semantics { contentDescription = navLabel },
+        containerColor = colors.surfaceContainer,
     ) {
-        Column {
-            if (showPrimaryAction) {
-                val actionTextRes = when (activeTab) {
-                    MainTab.REMINDERS -> R.string.dock_new_reminder
-                    else -> R.string.dock_new_entry
-                }
-                Button(
-                    onClick = onPrimaryAction,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .heightIn(min = 48.dp)
-                        .testTag("dockPrimaryAction"),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_plus),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(actionTextRes))
-                }
+        for (tab in MainTab.entries) {
+            val (labelRes, iconRes) = when (tab) {
+                MainTab.HOME -> R.string.dock_home to R.drawable.ic_home
+                MainTab.HISTORY -> R.string.dock_history to R.drawable.ic_book
+                MainTab.REMINDERS -> R.string.dock_reminders to R.drawable.ic_bell
+                MainTab.TOOLS -> R.string.dock_tools to R.drawable.ic_tool
             }
+            NavigationBarItem(
+                selected = activeTab == tab,
+                onClick = { onSelectTab(tab) },
+                modifier = Modifier.testTag("dockTab:${tab.name.lowercase()}"),
+                icon = { Icon(painterResource(iconRes), contentDescription = null) },
+                label = { Text(stringResource(labelRes), textAlign = TextAlign.Center) },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = colors.secondaryContainer,
+                    selectedIconColor = colors.onSecondaryContainer,
+                    selectedTextColor = colors.onSurface,
+                ),
+            )
+        }
+    }
+}
 
-            val navLabel = stringResource(R.string.dock_nav_label)
-            NavigationBar(
-                modifier = Modifier.semantics { contentDescription = navLabel },
-                containerColor = colors.surfaceContainer,
-            ) {
-                for (tab in MainTab.entries) {
-                    val (labelRes, iconRes) = when (tab) {
-                        MainTab.HOME -> R.string.dock_home to R.drawable.ic_home
-                        MainTab.HISTORY -> R.string.dock_history to R.drawable.ic_book
-                        MainTab.REMINDERS -> R.string.dock_reminders to R.drawable.ic_bell
+/**
+ * Floating rounded pill navigation dock (32dp rounded corner, elevated surface,
+ * lavender active pill indicator, Persian labels and Material icons).
+ */
+@Composable
+fun FloatingBottomDock(
+    selectedTab: MainTab,
+    onTabSelected: (MainTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val navLabel = stringResource(R.string.dock_nav_label)
+    Surface(
+        modifier = modifier
+            .testTag("floatingBottomDock")
+            .semantics { contentDescription = navLabel },
+        shape = RoundedCornerShape(32.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 8.dp,
+        tonalElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            for (tab in MainTab.entries) {
+                val isSelected = selectedTab == tab
+                val (labelRes, iconRes) = when (tab) {
+                    MainTab.HOME -> R.string.dock_home to R.drawable.ic_home
+                    MainTab.HISTORY -> R.string.dock_history to R.drawable.ic_book
+                    MainTab.REMINDERS -> R.string.dock_reminders to R.drawable.ic_bell
+                    MainTab.TOOLS -> R.string.dock_tools to R.drawable.ic_tool
+                }
+                val label = stringResource(labelRes)
+
+                Surface(
+                    onClick = { onTabSelected(tab) },
+                    selected = isSelected,
+                    shape = RoundedCornerShape(24.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .testTag("dockTab:${tab.name.lowercase()}")
+                        .heightIn(min = 44.dp)
+                        .semantics { contentDescription = label },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(iconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            ),
+                            maxLines = 1,
+                        )
                     }
-                    NavigationBarItem(
-                        selected = activeTab == tab,
-                        onClick = { onSelectTab(tab) },
-                        modifier = Modifier.testTag("dockTab:${tab.name.lowercase()}"),
-                        icon = { Icon(painterResource(iconRes), contentDescription = null) },
-                        label = { Text(stringResource(labelRes), textAlign = TextAlign.Center) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = colors.secondaryContainer,
-                            selectedIconColor = colors.onSecondaryContainer,
-                            selectedTextColor = colors.onSurface,
-                        ),
-                    )
                 }
             }
         }
     }
 }
+
+/**
+ * Metric card with slate surface, title, large Persian value, optional subtitle, and icon.
+ */
+@Composable
+fun MetricCard(
+    title: String,
+    value: String,
+    subtitle: String? = null,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                CircularIconBadge(
+                    icon = icon,
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    iconColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp),
+                )
+            }
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Circular badge container for icons.
+ */
+@Composable
+fun CircularIconBadge(
+    icon: ImageVector,
+    backgroundColor: Color,
+    iconColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/**
+ * Status badge pill.
+ */
+@Composable
+fun StatusPill(
+    text: String,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        contentColor = contentColor,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,6 +309,7 @@ internal fun LedgerTopBar(
     backModifier: Modifier = Modifier,
     subtitle: String? = null,
     subtitleModifier: Modifier = Modifier,
+    compact: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val fontScale = LocalDensity.current.fontScale
@@ -182,7 +342,7 @@ internal fun LedgerTopBar(
             }
         },
         actions = actions,
-        expandedHeight = 64.dp + 40.dp * (fontScale - 1f).coerceAtLeast(0f),
+        expandedHeight = if (compact) 56.dp else 64.dp + 40.dp * (fontScale - 1f).coerceAtLeast(0f),
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
@@ -272,7 +432,7 @@ fun NoticeBanner(
 }
 
 /**
- * Sticky Form Footer with 1dp divider and IME padding.
+ * Sticky form actions above the IME or system navigation.
  */
 @Composable
 fun StickyFormFooter(
@@ -285,6 +445,7 @@ fun StickyFormFooter(
     isActionEnabled: Boolean = true,
     actionTestTag: String = "formActionSave",
     cancelTestTag: String = "formActionCancel",
+    compact: Boolean = false,
 ) {
     Surface(
         modifier = modifier
@@ -295,7 +456,7 @@ fun StickyFormFooter(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = if (compact) 4.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Button(
@@ -306,6 +467,8 @@ fun StickyFormFooter(
                     .heightIn(min = 48.dp)
                     .testTag(actionTestTag),
                 shape = ButtonShape,
+                contentPadding = if (compact) PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                else ButtonDefaults.ContentPadding,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -408,19 +571,60 @@ fun DisclosureRow(
     }
 }
 
+// Default extended FAB height plus Scaffold’s bottom gap.
+internal val LedgerFabContentClearance = 72.dp
+
+@Composable
+internal fun LedgerFab(
+    @StringRes labelRes: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(labelRes)
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        modifier = modifier.semantics { contentDescription = label },
+        icon = { Icon(painterResource(R.drawable.ic_plus), contentDescription = null) },
+        text = { Text(label) },
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntrySelectorSheet(
+    vehicleLabel: String,
     onDismiss: () -> Unit,
     onSelectFuel: () -> Unit,
     onSelectExpense: () -> Unit,
-    onSelectService: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var selecting by remember { mutableStateOf(false) }
+
+    fun select(openForm: () -> Unit) {
+        if (selecting) return
+        selecting = true
+        scope.launch {
+            try {
+                sheetState.hide()
+                if (!sheetState.isVisible) openForm()
+            } finally {
+                selecting = false
+            }
+        }
+    }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!selecting) onDismiss() },
+        sheetState = sheetState,
+        sheetGesturesEnabled = !selecting,
+        properties = ModalBottomSheetProperties(
+            shouldDismissOnBackPress = !selecting,
+            shouldDismissOnClickOutside = !selecting,
+        ),
         shape = SheetShape,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier.testTag("entrySelectorSheet"),
@@ -428,59 +632,40 @@ fun EntrySelectorSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = stringResource(R.string.entry_type_selector_title),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = stringResource(R.string.dock_new_entry),
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleLarge,
                 )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.app_close),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
+                Text(
+                    text = vehicleLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
-            HorizontalDivider(color = semanticColors.rule)
-
             SelectorOptionRow(
-                title = stringResource(R.string.entry_type_fuel),
-                subtitle = stringResource(R.string.entry_type_fuel_desc),
+                title = stringResource(R.string.home_log_fuel),
                 iconRes = R.drawable.ic_fuel,
-                onClick = onSelectFuel,
+                detail = stringResource(R.string.entry_type_fuel_desc),
+                enabled = !selecting,
+                onClick = { select(onSelectFuel) },
                 testTag = "selectorOption:fuel",
             )
 
             SelectorOptionRow(
-                title = stringResource(R.string.entry_type_expense),
-                subtitle = stringResource(R.string.entry_type_expense_desc),
+                title = stringResource(R.string.home_log_expense),
                 iconRes = R.drawable.ic_wallet,
-                onClick = onSelectExpense,
+                detail = stringResource(R.string.entry_type_expense_desc),
+                enabled = !selecting,
+                onClick = { select(onSelectExpense) },
                 testTag = "selectorOption:expense",
             )
 
-            SelectorOptionRow(
-                title = stringResource(R.string.entry_type_service),
-                subtitle = stringResource(R.string.entry_type_service_desc),
-                iconRes = R.drawable.ic_tool,
-                onClick = onSelectService,
-                testTag = "selectorOption:service",
-            )
-
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -488,8 +673,9 @@ fun EntrySelectorSheet(
 @Composable
 private fun SelectorOptionRow(
     title: String,
-    subtitle: String,
     iconRes: Int,
+    detail: String,
+    enabled: Boolean,
     onClick: () -> Unit,
     testTag: String,
 ) {
@@ -497,13 +683,13 @@ private fun SelectorOptionRow(
 
     Surface(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .testTag(testTag),
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, semanticColors.rule),
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
             modifier = Modifier
@@ -526,27 +712,14 @@ private fun SelectorOptionRow(
                     modifier = Modifier.size(20.dp),
                 )
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = subtitle,
+                    detail,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_back),
-                contentDescription = null,
-                tint = semanticColors.mutedInk,
-                modifier = Modifier.size(16.dp),
-            )
         }
     }
 }

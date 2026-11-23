@@ -22,10 +22,10 @@ class VehicleLogThemeTest {
 
     @Test
     fun darkColorSchemeMatchesApprovedDesign() {
-        assertEquals(Color(0xFFA6DEDF), VehicleLogDarkColorScheme.primary)
+        assertEquals(Color(0xFF9D85F2), VehicleLogDarkColorScheme.primary)
         assertEquals(Color(0xFFFFB4AB), VehicleLogDarkColorScheme.error)
-        assertEquals(Color(0xFF101D22), VehicleLogDarkColorScheme.background)
-        assertEquals(Color(0xFF192B31), VehicleLogDarkColorScheme.surface)
+        assertEquals(Color(0xFF0E0E13), VehicleLogDarkColorScheme.background)
+        assertEquals(Color(0xFF1A1824), VehicleLogDarkColorScheme.surface)
         assertEquals(Color(0xFF382A16), VehicleLogDarkSemanticColors.warningSurface)
     }
 
