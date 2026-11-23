@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,7 +29,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -41,34 +39,54 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import java.util.Locale
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.domain.PersianDigits
 import org.unishiasy.vehiclelog.domain.toPersianGroupedDigits
 import org.unishiasy.vehiclelog.domain.withPersianDigits
-import org.unishiasy.vehiclelog.ui.theme.VehicleLogColors
 
 /**
- * State holding inputs and calculated results for the trip cost calculator.
+ * State holding inputs and computed results for the trip cost calculator.
+ *
+ * `totalFuelLiters` and `totalCostToman` are computed properties so `.copy()`
+ * recomputes results reliably without stale cached values.
  */
 data class TripCalculatorState(
     val distanceKm: String = "",
     val ratePerLiterToman: String = "",
     val consumptionL100Km: String = "",
-    val totalFuelLiters: Double = calculateFuel(distanceKm, consumptionL100Km),
-    val totalCostToman: Long = calculateCost(totalFuelLiters, ratePerLiterToman),
 ) {
+    /**
+     * Computed total fuel required in Liters based on distance and consumption.
+     */
+    val totalFuelLiters: Double
+        get() = calculateFuel(distanceKm, consumptionL100Km)
+
+    /**
+     * Computed total estimated fuel cost in Toman.
+     */
+    val totalCostToman: Long
+        get() = calculateCost(totalFuelLiters, ratePerLiterToman)
+
+    /**
+     * Secondary constructor for backward compatibility with 5-parameter callers.
+     */
+    constructor(
+        distanceKm: String,
+        ratePerLiterToman: String,
+        consumptionL100Km: String,
+        @Suppress("UNUSED_PARAMETER") totalFuelLiters: Double,
+        @Suppress("UNUSED_PARAMETER") totalCostToman: Long,
+    ) : this(distanceKm, ratePerLiterToman, consumptionL100Km)
+
     companion object {
         fun calculateFuel(distanceKm: String, consumptionL100Km: String): Double {
             val dist = parseInput(distanceKm)
@@ -147,6 +165,9 @@ fun TripCalculatorScreen(
 
 /**
  * Stateless Trip Calculator Screen Composable.
+ *
+ * Uses semantic MaterialTheme.colorScheme tokens to properly support both dark
+ * and light modes while matching the dark slate and lavender cab aesthetic in dark mode.
  */
 @Composable
 fun TripCalculatorScreen(
@@ -158,11 +179,13 @@ fun TripCalculatorScreen(
     onReset: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
 ) {
+    val colors = MaterialTheme.colorScheme
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .background(VehicleLogColors.DarkSlateBackground)
+                .background(colors.background)
                 .testTag("tripCalculatorScreen")
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 20.dp),
@@ -185,7 +208,7 @@ fun TripCalculatorScreen(
                         Icon(
                             painter = painterResource(R.drawable.ic_arrow_back),
                             contentDescription = stringResource(R.string.date_picker_close),
-                            tint = VehicleLogColors.TextPrimary,
+                            tint = colors.onSurface,
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -195,7 +218,7 @@ fun TripCalculatorScreen(
                     text = stringResource(R.string.trip_calculator_title),
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        color = VehicleLogColors.TextPrimary,
+                        color = colors.onSurface,
                     ),
                     modifier = Modifier.weight(1f),
                 )
@@ -212,9 +235,9 @@ fun TripCalculatorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = VehicleLogColors.DarkSlateSurface,
+                    containerColor = colors.surface,
                 ),
-                border = BorderStroke(1.dp, VehicleLogColors.DarkSlateSurfaceElevated),
+                border = BorderStroke(1.dp, colors.outlineVariant),
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -233,7 +256,7 @@ fun TripCalculatorScreen(
                         trailingIcon = {
                             Text(
                                 text = stringResource(R.string.trip_unit_km),
-                                color = VehicleLogColors.TextSecondary,
+                                color = colors.onSurfaceVariant,
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         },
@@ -256,7 +279,7 @@ fun TripCalculatorScreen(
                         trailingIcon = {
                             Text(
                                 text = stringResource(R.string.trip_unit_liter),
-                                color = VehicleLogColors.TextSecondary,
+                                color = colors.onSurfaceVariant,
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         },
@@ -279,7 +302,7 @@ fun TripCalculatorScreen(
                         trailingIcon = {
                             Text(
                                 text = stringResource(R.string.trip_unit_toman),
-                                color = VehicleLogColors.TextSecondary,
+                                color = colors.onSurfaceVariant,
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         },
@@ -301,9 +324,9 @@ fun TripCalculatorScreen(
                                 .heightIn(min = 48.dp)
                                 .testTag("ratePreset:1500"),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, VehicleLogColors.LavenderPrimary.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.5f)),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = VehicleLogColors.LavenderSecondary,
+                                contentColor = colors.primary,
                             ),
                         ) {
                             Text(
@@ -319,9 +342,9 @@ fun TripCalculatorScreen(
                                 .heightIn(min = 48.dp)
                                 .testTag("ratePreset:3000"),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, VehicleLogColors.LavenderPrimary.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.5f)),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = VehicleLogColors.LavenderSecondary,
+                                contentColor = colors.primary,
                             ),
                         ) {
                             Text(
@@ -349,9 +372,9 @@ fun TripCalculatorScreen(
                     .heightIn(min = 48.dp)
                     .testTag("tripResetButton"),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, VehicleLogColors.DarkSlateSurfaceElevated),
+                border = BorderStroke(1.dp, colors.outlineVariant),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = VehicleLogColors.TextSecondary,
+                    contentColor = colors.onSurfaceVariant,
                 ),
             ) {
                 Text(
@@ -369,13 +392,15 @@ private fun TripResultCard(
     totalCostToman: Long,
     modifier: Modifier = Modifier,
 ) {
+    val colors = MaterialTheme.colorScheme
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = VehicleLogColors.DarkSlateSurface,
+            containerColor = colors.surface,
         ),
-        border = BorderStroke(1.dp, VehicleLogColors.LavenderPrimary.copy(alpha = 0.3f)),
+        border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.35f)),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -391,14 +416,14 @@ private fun TripResultCard(
                     Text(
                         text = stringResource(R.string.trip_total_cost_label),
                         style = MaterialTheme.typography.labelMedium,
-                        color = VehicleLogColors.TextSecondary,
+                        color = colors.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "${totalCostToman.toPersianGroupedDigits()} ${stringResource(R.string.trip_unit_toman)}",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = VehicleLogColors.LavenderPrimary,
+                            color = colors.primary,
                         ),
                         modifier = Modifier.testTag("tripTotalCost"),
                     )
@@ -406,7 +431,7 @@ private fun TripResultCard(
             }
 
             HorizontalDivider(
-                color = VehicleLogColors.DarkSlateSurfaceElevated,
+                color = colors.outlineVariant,
                 thickness = 1.dp,
             )
 
@@ -419,7 +444,7 @@ private fun TripResultCard(
                 Text(
                     text = stringResource(R.string.trip_total_fuel_label),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = VehicleLogColors.TextSecondary,
+                    color = colors.onSurfaceVariant,
                 )
 
                 val fuelFormatted = if (totalFuelLiters == 0.0) {
@@ -436,7 +461,7 @@ private fun TripResultCard(
                     text = "$fuelFormatted ${stringResource(R.string.trip_unit_liter)}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = VehicleLogColors.TextPrimary,
+                        color = colors.onSurface,
                     ),
                     modifier = Modifier.testTag("tripTotalFuel"),
                 )
@@ -447,11 +472,11 @@ private fun TripResultCard(
 
 @Composable
 private fun outlinedFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = VehicleLogColors.LavenderPrimary,
-    unfocusedBorderColor = VehicleLogColors.DarkSlateSurfaceElevated,
-    focusedLabelColor = VehicleLogColors.LavenderPrimary,
-    unfocusedLabelColor = VehicleLogColors.TextSecondary,
-    focusedTextColor = VehicleLogColors.TextPrimary,
-    unfocusedTextColor = VehicleLogColors.TextPrimary,
-    cursorColor = VehicleLogColors.LavenderPrimary,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    focusedLabelColor = MaterialTheme.colorScheme.primary,
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    cursorColor = MaterialTheme.colorScheme.primary,
 )

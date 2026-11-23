@@ -30,40 +30,52 @@ object FuelConsumptionCalculator {
      * Rules:
      * - Filter entries where [HistoryEntry.isFullTank] is true, [HistoryEntry.fuelVolumeMl] is not null and > 0,
      *   and [HistoryEntry.linkedOdometerKm] is not null.
-     * - Sort entries by odometer reading ascending (then by date).
-     * - Requires at least 2 full-tank entries.
+     * - Entries are grouped by [HistoryEntry.vehicleId] to prevent interleaving odometer readings
+     *   across different vehicles.
+     * - Within each vehicle, entries are sorted ascending by odometer reading (and date).
+     * - Requires at least 2 full-tank entries for a vehicle.
      * - For consecutive full-tank entries, deltaKm = current.linkedOdometerKm - prev.linkedOdometerKm.
      * - If deltaKm > 0, the interval consumption is (current.fuelVolumeMl / 1000.0 / deltaKm) * 100.
      * - Overall average = (total liters consumed between full tanks / total distance delta) * 100.
      * - Returns null if fewer than 2 valid entries or total distance delta <= 0.
      */
-    fun calculateAverageL100Km(entries: List<HistoryEntry>): Double? {
-        val fullTankEntries = entries
-            .filter { entry ->
+    fun calculateAverageL100Km(
+        entries: List<HistoryEntry>,
+        targetVehicleId: String? = null,
+    ): Double? {
+        val filtered = entries.filter { entry ->
+            (targetVehicleId == null || entry.vehicleId == targetVehicleId) &&
                 (entry.category.isEmpty() || entry.category.equals("fuel", ignoreCase = true)) &&
-                    entry.isFullTank &&
-                    (entry.fuelVolumeMl ?: 0L) > 0L &&
-                    entry.linkedOdometerKm != null
-            }
-            .sortedWith(
+                entry.isFullTank &&
+                (entry.fuelVolumeMl ?: 0L) > 0L &&
+                entry.linkedOdometerKm != null
+        }
+
+        if (filtered.isEmpty()) return null
+
+        val vehicleGroups = filtered.groupBy { it.vehicleId }
+
+        var totalDistanceKm = 0L
+        var totalFuelMl = 0L
+
+        for ((_, vehicleEntries) in vehicleGroups) {
+            val sorted = vehicleEntries.sortedWith(
                 compareBy<HistoryEntry> { it.linkedOdometerKm }
                     .thenBy { it.occurredOn }
                     .thenBy { it.createdAtEpochMillis }
             )
 
-        if (fullTankEntries.size < 2) return null
+            if (sorted.size < 2) continue
 
-        var totalDistanceKm = 0L
-        var totalFuelMl = 0L
+            for (i in 1 until sorted.size) {
+                val prev = sorted[i - 1]
+                val curr = sorted[i]
 
-        for (i in 1 until fullTankEntries.size) {
-            val prev = fullTankEntries[i - 1]
-            val curr = fullTankEntries[i]
-
-            val deltaKm = (curr.linkedOdometerKm ?: 0L) - (prev.linkedOdometerKm ?: 0L)
-            if (deltaKm > 0) {
-                totalDistanceKm += deltaKm
-                totalFuelMl += (curr.fuelVolumeMl ?: 0L)
+                val deltaKm = (curr.linkedOdometerKm ?: 0L) - (prev.linkedOdometerKm ?: 0L)
+                if (deltaKm > 0) {
+                    totalDistanceKm += deltaKm
+                    totalFuelMl += (curr.fuelVolumeMl ?: 0L)
+                }
             }
         }
 
@@ -74,46 +86,57 @@ object FuelConsumptionCalculator {
     }
 
     /**
-     * Calculates consumption per interval between consecutive full-tank entries.
+     * Calculates consumption per interval between consecutive full-tank entries,
+     * grouped safely by vehicle.
      */
-    fun calculateIntervals(entries: List<HistoryEntry>): List<FuelConsumptionInterval> {
-        val fullTankEntries = entries
-            .filter { entry ->
+    fun calculateIntervals(
+        entries: List<HistoryEntry>,
+        targetVehicleId: String? = null,
+    ): List<FuelConsumptionInterval> {
+        val filtered = entries.filter { entry ->
+            (targetVehicleId == null || entry.vehicleId == targetVehicleId) &&
                 (entry.category.isEmpty() || entry.category.equals("fuel", ignoreCase = true)) &&
-                    entry.isFullTank &&
-                    (entry.fuelVolumeMl ?: 0L) > 0L &&
-                    entry.linkedOdometerKm != null
-            }
-            .sortedWith(
+                entry.isFullTank &&
+                (entry.fuelVolumeMl ?: 0L) > 0L &&
+                entry.linkedOdometerKm != null
+        }
+
+        if (filtered.isEmpty()) return emptyList()
+
+        val vehicleGroups = filtered.groupBy { it.vehicleId }
+        val intervals = mutableListOf<FuelConsumptionInterval>()
+
+        for ((_, vehicleEntries) in vehicleGroups) {
+            val sorted = vehicleEntries.sortedWith(
                 compareBy<HistoryEntry> { it.linkedOdometerKm }
                     .thenBy { it.occurredOn }
                     .thenBy { it.createdAtEpochMillis }
             )
 
-        if (fullTankEntries.size < 2) return emptyList()
+            if (sorted.size < 2) continue
 
-        val intervals = mutableListOf<FuelConsumptionInterval>()
-        for (i in 1 until fullTankEntries.size) {
-            val prev = fullTankEntries[i - 1]
-            val curr = fullTankEntries[i]
+            for (i in 1 until sorted.size) {
+                val prev = sorted[i - 1]
+                val curr = sorted[i]
 
-            val prevOdo = prev.linkedOdometerKm ?: continue
-            val currOdo = curr.linkedOdometerKm ?: continue
-            val deltaKm = currOdo - prevOdo
-            val fuelMl = curr.fuelVolumeMl ?: continue
+                val prevOdo = prev.linkedOdometerKm ?: continue
+                val currOdo = curr.linkedOdometerKm ?: continue
+                val deltaKm = currOdo - prevOdo
+                val fuelMl = curr.fuelVolumeMl ?: continue
 
-            if (deltaKm > 0 && fuelMl > 0) {
-                val liters = fuelMl / 1000.0
-                val consumption = (liters / deltaKm) * 100.0
-                intervals.add(
-                    FuelConsumptionInterval(
-                        previousOdometerKm = prevOdo,
-                        currentOdometerKm = currOdo,
-                        distanceKm = deltaKm,
-                        fuelLiters = liters,
-                        consumptionL100Km = consumption,
+                if (deltaKm > 0 && fuelMl > 0) {
+                    val liters = fuelMl / 1000.0
+                    val consumption = (liters / deltaKm) * 100.0
+                    intervals.add(
+                        FuelConsumptionInterval(
+                            previousOdometerKm = prevOdo,
+                            currentOdometerKm = currOdo,
+                            distanceKm = deltaKm,
+                            fuelLiters = liters,
+                            consumptionL100Km = consumption,
+                        )
                     )
-                )
+                }
             }
         }
         return intervals
