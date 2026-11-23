@@ -78,6 +78,8 @@ class LedgerRepository internal constructor(private val database: VehicleDatabas
             notes = notes,
             amountRials = input.amountRials,
             fuelVolumeMl = fuelVolumeMl,
+            stationName = input.stationName?.trim()?.takeIf { it.isNotBlank() },
+            isFullTank = input.isFullTank,
         )
         val existing = dao.findById(entry.id)
         if (existing != null) {
@@ -132,6 +134,8 @@ class LedgerRepository internal constructor(private val database: VehicleDatabas
             notes = notes,
             amountRials = input.amountRials,
             fuelVolumeMl = fuelVolumeMl,
+            stationName = input.stationName?.trim()?.takeIf { it.isNotBlank() },
+            isFullTank = input.isFullTank,
         )
         if (updated == 0) return@saveEntry EntrySaveResult.NotFound
         when {

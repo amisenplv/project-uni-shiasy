@@ -10,6 +10,8 @@ data class EntryInput(
     val amountRials: Long? = null,
     val fuelVolumeLiters: String? = null,
     val notes: String? = null,
+    val stationName: String? = null,
+    val isFullTank: Boolean = false,
 )
 
 private val datePattern = Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}")

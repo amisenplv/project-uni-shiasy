@@ -248,7 +248,7 @@ class LedgerMigrationTest {
     }
 
     private fun openLatest(name: String) = Room.databaseBuilder(context, VehicleDatabase::class.java, name)
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .addCallback(reminderConstraints)
         .build()
 

@@ -18,6 +18,8 @@ internal interface LedgerDao {
             entries.notes,
             entries.amountRials,
             entries.fuelVolumeMl,
+            entries.station_name AS stationName,
+            entries.is_full_tank AS isFullTank,
             odometer_readings.kilometers AS linkedOdometerKm
         FROM entries
         LEFT JOIN odometer_readings ON odometer_readings.entryId = entries.id
@@ -46,7 +48,8 @@ internal interface LedgerDao {
 
     @Query("""
         UPDATE entries SET vehicleId = :vehicleId, category = :category, occurredOn = :occurredOn,
-            notes = :notes, amountRials = :amountRials, fuelVolumeMl = :fuelVolumeMl
+            notes = :notes, amountRials = :amountRials, fuelVolumeMl = :fuelVolumeMl,
+            station_name = :stationName, is_full_tank = :isFullTank
         WHERE id = :id
     """)
     suspend fun update(
@@ -57,6 +60,8 @@ internal interface LedgerDao {
         notes: String?,
         amountRials: Long?,
         fuelVolumeMl: Long?,
+        stationName: String? = null,
+        isFullTank: Boolean = false,
     ): Int
 
     @Query("DELETE FROM entries WHERE id = :id")

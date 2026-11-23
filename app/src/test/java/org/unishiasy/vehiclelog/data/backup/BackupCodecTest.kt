@@ -5,6 +5,7 @@ import java.util.UUID
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.unishiasy.vehiclelog.data.local.EntryEntity
@@ -146,6 +147,25 @@ class BackupCodecTest {
         val separateVehicle = later.copy(vehicleId = other.id, kilometers = 0)
         val valid = full.copy(readings = listOf(linked, standalone, separateVehicle))
         assertEquals(valid, success(BackupCodec.decode(encode(valid))))
+    }
+
+    @Test fun roundTripsStationNameAndFullTankFlag() {
+        val entry = fuel.copy(id = id(25), stationName = "جایگاه آزادی", isFullTank = true)
+        val snapshot = BackupSnapshot(time, listOf(car), listOf(entry))
+        val encoded = encode(snapshot)
+        val decoded = success(BackupCodec.decode(encoded))
+        assertEquals(snapshot, decoded)
+        assertEquals("جایگاه آزادی", decoded.entries.single().stationName)
+        assertTrue(decoded.entries.single().isFullTank)
+    }
+
+    @Test fun decodesLegacyEntriesWithoutStationNameOrFullTank() {
+        val json = encode(BackupSnapshot(time, listOf(car), listOf(fuel))).decodeToString()
+        val legacyJson = json.replace(",\"stationName\":null,\"isFullTank\":false", "")
+        val decoded = success(BackupCodec.decode(legacyJson.encodeToByteArray()))
+        val decodedEntry = decoded.entries.single()
+        assertNull(decodedEntry.stationName)
+        assertFalse(decodedEntry.isFullTank)
     }
 
     private fun encode(snapshot: BackupSnapshot) = success(BackupCodec.encode(snapshot))

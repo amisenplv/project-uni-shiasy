@@ -10,4 +10,6 @@ data class HistoryEntry(
     val amountRials: Long?,
     val fuelVolumeMl: Long?,
     val linkedOdometerKm: Long?,
+    val stationName: String? = null,
+    val isFullTank: Boolean = false,
 )

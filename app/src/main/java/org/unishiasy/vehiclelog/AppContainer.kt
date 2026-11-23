@@ -17,6 +17,7 @@ import org.unishiasy.vehiclelog.data.catalog.VehicleCatalogLoader
 import org.unishiasy.vehiclelog.data.local.MIGRATION_1_2
 import org.unishiasy.vehiclelog.data.local.MIGRATION_2_3
 import org.unishiasy.vehiclelog.data.local.MIGRATION_3_4
+import org.unishiasy.vehiclelog.data.local.MIGRATION_4_5
 import org.unishiasy.vehiclelog.data.local.VehicleDatabase
 import org.unishiasy.vehiclelog.data.local.reminderConstraints
 import org.unishiasy.vehiclelog.reminders.ReminderNotifications
@@ -29,7 +30,7 @@ class AppContainer(context: Context) {
     private val applicationContext = context.applicationContext
     private val database by lazy {
         Room.databaseBuilder(applicationContext, VehicleDatabase::class.java, "vehicle-ledger.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .addCallback(reminderConstraints)
             .build()
     }

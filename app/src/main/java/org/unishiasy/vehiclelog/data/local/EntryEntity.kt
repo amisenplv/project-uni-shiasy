@@ -1,5 +1,6 @@
 package org.unishiasy.vehiclelog.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -26,4 +27,6 @@ data class EntryEntity(
     val notes: String?,
     val amountRials: Long?,
     val fuelVolumeMl: Long?,
+    @ColumnInfo(name = "station_name") val stationName: String? = null,
+    @ColumnInfo(name = "is_full_tank", defaultValue = "0") val isFullTank: Boolean = false,
 )

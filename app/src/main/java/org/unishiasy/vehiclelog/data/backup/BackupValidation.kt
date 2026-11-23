@@ -42,7 +42,7 @@ internal fun validateSnapshot(snapshot: BackupSnapshot) {
                 else entry.fuelVolumeMl == null,
             BackupError.InvalidEntry,
         )
-        validateText(entry.notes)
+        validateText(entry.notes, entry.stationName)
     }
     val entries = snapshot.entries.associateBy { it.id }
     val linkedEntries = HashSet<String>()

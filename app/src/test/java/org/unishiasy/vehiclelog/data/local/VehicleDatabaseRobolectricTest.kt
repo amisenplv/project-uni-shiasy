@@ -39,7 +39,7 @@ class VehicleDatabaseRobolectricTest {
     )
 
     @Test
-    fun migratesPopulatedV1ThroughV4AndMatchesFreshV4Schema() = runBlocking<Unit> {
+    fun migratesPopulatedV1ThroughV5AndMatchesFreshV5Schema() = runBlocking<Unit> {
         val dbName = "robolectric-migration-${UUID.randomUUID()}.db"
         val dbFile = context.getDatabasePath(dbName)
         dbFile.parentFile?.mkdirs()
@@ -120,7 +120,7 @@ class VehicleDatabaseRobolectricTest {
 
     private fun openLatest(name: String) = Room.databaseBuilder(context, VehicleDatabase::class.java, name)
         .allowMainThreadQueries()
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .addCallback(reminderConstraints)
         .build()
 

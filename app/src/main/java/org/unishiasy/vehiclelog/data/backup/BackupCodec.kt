@@ -67,6 +67,7 @@ internal object BackupCodec {
                 "id" to JsonPrimitive(it.id), "vehicleId" to JsonPrimitive(it.vehicleId), "category" to JsonPrimitive(it.category),
                 "occurredOn" to JsonPrimitive(it.occurredOn), "createdAtEpochMillis" to JsonPrimitive(it.createdAtEpochMillis),
                 "notes" to JsonPrimitive(it.notes), "amountRials" to JsonPrimitive(it.amountRials), "fuelVolumeMl" to JsonPrimitive(it.fuelVolumeMl),
+                "stationName" to JsonPrimitive(it.stationName), "isFullTank" to JsonPrimitive(it.isFullTank),
             )
         }
         output.appendRows("readings", snapshot.readings.sortedBy { it.id }) {
@@ -95,9 +96,16 @@ internal object BackupCodec {
     }
 
     private fun readEntry(row: JsonElement): EntryEntity {
-        val f = Fields(row.asObject(), "id", "vehicleId", "category", "occurredOn", "createdAtEpochMillis", "notes", "amountRials", "fuelVolumeMl")
-        return EntryEntity(f.text("id"), f.text("vehicleId"), f.text("category"), f.text("occurredOn"),
-            f.integer("createdAtEpochMillis"), f.optionalText("notes"), f.optionalInteger("amountRials"), f.optionalInteger("fuelVolumeMl"))
+        val f = Fields(
+            row.asObject(),
+            required = setOf("id", "vehicleId", "category", "occurredOn", "createdAtEpochMillis", "notes", "amountRials", "fuelVolumeMl"),
+            optional = setOf("stationName", "isFullTank"),
+        )
+        return EntryEntity(
+            f.text("id"), f.text("vehicleId"), f.text("category"), f.text("occurredOn"),
+            f.integer("createdAtEpochMillis"), f.optionalText("notes"), f.optionalInteger("amountRials"), f.optionalInteger("fuelVolumeMl"),
+            f.optionalText("stationName"), f.boolean("isFullTank", default = false),
+        )
     }
 
     private fun readReading(row: JsonElement): OdometerReadingEntity {
@@ -135,17 +143,27 @@ internal object BackupCodec {
     }
 }
 
-private class Fields(private val objectValue: JsonObject, vararg names: String) {
+private class Fields(
+    private val objectValue: JsonObject,
+    required: Set<String>,
+    optional: Set<String> = emptySet(),
+) {
+    constructor(objectValue: JsonObject, vararg names: String) : this(objectValue, names.toSet(), emptySet())
+
     init {
-        val expected = names.toSet()
-        checkSnapshot(objectValue.keys.all { it in expected }, BackupError.UnknownField)
-        checkSnapshot(objectValue.keys.containsAll(expected), BackupError.MissingField)
+        val allAllowed = required + optional
+        checkSnapshot(objectValue.keys.all { it in allAllowed }, BackupError.UnknownField)
+        checkSnapshot(objectValue.keys.containsAll(required), BackupError.MissingField)
     }
 
     fun text(key: String): String = objectValue.required(key).text()
     fun integer(key: String): Long = objectValue.required(key).integer()
-    fun optionalText(key: String): String? = objectValue.required(key).takeUnless { it == JsonNull }?.text()
-    fun optionalInteger(key: String): Long? = objectValue.required(key).takeUnless { it == JsonNull }?.integer()
+    fun optionalText(key: String): String? = objectValue[key]?.takeUnless { it == JsonNull }?.text()
+    fun optionalInteger(key: String): Long? = objectValue[key]?.takeUnless { it == JsonNull }?.integer()
+    fun boolean(key: String, default: Boolean = false): Boolean {
+        val element = objectValue[key] ?: return default
+        return element.boolean()
+    }
     fun collection(key: String, max: Int): JsonArray {
         val array = objectValue.required(key) as? JsonArray ?: throw InvalidSnapshot(BackupError.InvalidField)
         checkSnapshot(array.size <= max, BackupError.CollectionLimit)
@@ -159,3 +177,6 @@ private fun JsonElement.text(): String =
     (this as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw InvalidSnapshot(BackupError.InvalidField)
 private fun JsonElement.integer(): Long =
     (this as? JsonPrimitive)?.takeUnless { it.isString }?.content?.toLongOrNull() ?: throw InvalidSnapshot(BackupError.InvalidField)
+private fun JsonElement.boolean(): Boolean =
+    (this as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toBooleanStrictOrNull() ?: throw InvalidSnapshot(BackupError.InvalidField)
+
