@@ -168,6 +168,13 @@ class BackupCodecTest {
         assertFalse(decodedEntry.isFullTank)
     }
 
+    @Test fun rejectsInvalidStationNameOrFullTankType() {
+        val entry = fuel.copy(id = id(26), stationName = "جایگاه", isFullTank = true)
+        val validJson = encode(BackupSnapshot(time, listOf(car), listOf(entry))).decodeToString()
+        altered(BackupError.InvalidField, validJson.replace("\"isFullTank\":true", "\"isFullTank\":\"true\""))
+        altered(BackupError.InvalidField, validJson.replace("جایگاه", "\\uD800"))
+    }
+
     private fun encode(snapshot: BackupSnapshot) = success(BackupCodec.encode(snapshot))
     private fun <T> success(result: BackupResult<T>): T = (result as BackupResult.Success).value
     private fun altered(reason: BackupError, json: String) = failure(reason, BackupCodec.decode(json.encodeToByteArray()))
