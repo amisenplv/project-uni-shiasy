@@ -31,7 +31,7 @@
     <string name="ledger_open">ثبت و ویرایش هزینه‌های %1$s</string>
     <string name="ledger_title">هزینه‌ها و سرویس‌ها</string>
     <string name="ledger_add">ثبت هزینه یا سرویس</string>
-    <string name="ledger_close_new_entry">بستن فرم ثبت هزینه یا سرویس</string>
+    <string name="ledger_close_new_entry">بستن فرم ثبت</string>
     <string name="ledger_edit">ویرایش ثبت</string>
     <string name="ledger_back">بازگشت به خودروها</string>
     <string name="ledger_recent">ثبت‌های اخیر</string>
@@ -46,6 +46,14 @@
     <string name="ledger_wash">کارواش</string>
     <string name="ledger_parts">قطعات</string>
     <string name="ledger_other">سایر</string>
+    <string name="ledger_fuel_total_paid">مبلغ پرداختی (تومان)</string>
+    <string name="ledger_optional_amount">مبلغ (تومان، اختیاری)</string>
+    <string name="ledger_discard_draft_title">از ثبت خارج می‌شوید؟</string>
+    <string name="ledger_discard_draft_action">خروج بدون ذخیره</string>
+    <string name="ledger_keep_draft">ادامهٔ ثبت</string>
+    <string name="home_view_reminders">مشاهدهٔ یادآورها</string>
+    <string name="home_full_report">گزارش کامل</string>
+    <string name="home_month_spending">هزینه‌های %1$s</string>
     <string name="ledger_amount">مبلغ (تومان)</string>
     <string name="ledger_date">تاریخ ثبت (شمسی)</string>
     <string name="ledger_date_example">نمونه ۱۴۰۵/۰۸/۱۹</string>
@@ -55,6 +63,7 @@
     <string name="ledger_notes">یادداشت (اختیاری)</string>
     <string name="ledger_mileage">کارکرد خودرو (کیلومتر، اختیاری)</string>
     <string name="ledger_mileage_reference">آخرین کارکرد ثبت‌شده %1$s کیلومتر</string>
+    <string name="ledger_no_recorded_mileage">کارکرد ثبت نشده</string>
     <string name="ledger_mileage_reference_empty">هنوز کارکردی ثبت نشده است.</string>
     <string name="ledger_keep_mileage">اگر خالی بماند، کارکرد فعلی حفظ می‌شود.</string>
     <string name="ledger_remove_mileage">حذف کارکرد همراه ثبت</string>
@@ -63,14 +72,14 @@
     <string name="ledger_amount_required">مبلغ را به تومان وارد کنید.</string>
     <string name="ledger_amount_invalid">مبلغ باید مثبت و حداکثر با یک رقم اعشار باشد.</string>
     <string name="ledger_date_invalid">یک تاریخ شمسی معتبر از سال ۱۳۰۰ تا ۱۴۹۸ وارد کنید.</string>
-    <string name="ledger_volume_invalid">حجم سوخت را به لیتر، بیشتر از صفر و با حداکثر سه رقم اعشار وارد کنید.</string>
+    <string name="ledger_volume_invalid">حجم باید بیشتر از صفر باشد و تا ۳ رقم اعشار داشته باشد.</string>
     <string name="ledger_mileage_invalid">کارکرد را به کیلومتر و به‌صورت عدد صحیح از صفر به بالا وارد کنید.</string>
     <string name="ledger_mileage_conflict">کارکرد با ثبت‌های قبل یا بعد از این تاریخ سازگار نیست.</string>
     <string name="ledger_mileage_conflict_action">کارکرد را اصلاح کنید یا ثبت بدون کارکرد را انتخاب کنید.</string>
     <string name="ledger_conflict_remove_explanation">با ثبت بدون کارکرد، کارکرد قبلی این مورد حذف می‌شود.</string>
     <string name="ledger_check_fields">ورودی‌های مشخص‌شده را بررسی کنید.</string>
     <string name="ledger_save_without_mileage">ثبت بدون کارکرد</string>
-    <string name="ledger_save">ذخیره ثبت</string>
+    <string name="ledger_save">ذخیره</string>
     <string name="ledger_saving">در حال ذخیره…</string>
     <string name="ledger_saved">ذخیره شد.</string>
     <string name="ledger_not_found">این ثبت دیگر در دسترس نیست.</string>
@@ -88,7 +97,7 @@
     <string name="ledger_liters">%1$s لیتر</string>
     <string name="ledger_kilometers">%1$s کیلومتر</string>
     <string name="dashboard_title">گزارش ماهانه</string>
-    <string name="dashboard_back">بازگشت به هزینه‌ها و سرویس‌ها</string>
+    <string name="dashboard_back">بازگشت</string>
     <string name="dashboard_loading">در حال بارگذاری گزارش…</string>
     <string name="dashboard_failed">گزارش بارگذاری نشد. دوباره تلاش کنید.</string>
     <string name="dashboard_choose_month">ماه را انتخاب کنید</string>
@@ -133,8 +142,9 @@
     <string name="reminder_no_longer_active">این یادآور دیگر فعال نیست.</string>
     <string name="reminder_date_summary">تاریخ سررسید: %1$s</string>
     <string name="reminder_mileage_summary">کارکرد سررسید: %1$s کیلومتر</string>
-    <string name="reminders_due_section">یادآورهای سررسید شده</string>
-    <string name="reminder_status_due">سررسید شده</string>
+    <string name="reminders_upcoming_section">یادآورهای پیشِ رو</string>
+    <string name="reminders_due_section">یادآورهای سررسیدشده</string>
+    <string name="reminder_status_due">سررسیدشده</string>
     <string name="reminder_status_pending">در انتظار سررسید</string>
     <string name="reminder_status_completed">انجام‌شده</string>
     <string name="reminder_status_canceled">لغوشده</string>
@@ -177,7 +187,7 @@
     <string name="home_empty_backup_description">اگر قبلاً از دفتر خودرو فایل پشتیبان تهیه کرده‌اید، می‌توانید آن را بازیابی کنید.</string>
     <string name="home_log_fuel">ثبت سوخت</string>
     <string name="home_log_expense">ثبت هزینه</string>
-    <string name="home_all_history">همه سوابق هزینه‌ها</string>
+    <string name="home_all_history">همهٔ سوابق</string>
     <string name="home_notebook_report">گزارش ماهانه</string>
     <string name="home_notebook_reminders">یادآورها</string>
     <string name="settings_appearance">ظاهر</string>
@@ -197,6 +207,7 @@
     <string name="dock_home">خانه</string>
     <string name="dock_history">سوابق</string>
     <string name="dock_reminders">یادآورها</string>
+    <string name="dock_tools">ابزارها</string>
     <string name="dock_new_entry">ثبت جدید</string>
     <string name="dock_new_reminder">ثبت یادآور</string>
     <string name="dock_nav_label">بخش‌های دفتر خودرو</string>
@@ -204,7 +215,7 @@
     <string name="entry_type_expense">هزینه</string>
     <string name="entry_type_service">سرویس</string>
     <string name="entry_type_fuel_desc">مبلغ پرداختی و حجم سوخت</string>
-    <string name="entry_type_expense_desc">بیمه، کارواش و سایر هزینه‌ها</string>
+    <string name="entry_type_expense_desc">سرویس، تعمیر و سایر هزینه‌ها</string>
     <string name="entry_type_service_desc">تعویض روغن، تعمیر و قطعات</string>
     <string name="entry_type_selector_title">نوع ثبت</string>
     <string name="vehicle_select_title">انتخاب خودرو</string>
@@ -216,13 +227,14 @@
     <string name="date_chip_plus_1m">+۱ ماه</string>
     <string name="date_chip_plus_3m">+۳ ماه</string>
     <string name="date_chip_plus_6m">+۶ ماه</string>
-    <string name="date_picker_open">انتخاب از تقویم</string>
+    <string name="date_picker_open">انتخاب تاریخ شمسی</string>
     <string name="date_picker_title">انتخاب تاریخ شمسی</string>
-    <string name="date_picker_prev_month">ماه قبل</string>
-    <string name="date_picker_next_month">ماه بعد</string>
-    <string name="date_picker_prev_year">سال قبل</string>
-    <string name="date_picker_next_year">سال بعد</string>
+    <string name="date_picker_day">روز</string>
+    <string name="date_picker_month">ماه</string>
+    <string name="date_picker_year">سال</string>
+    <string name="date_picker_confirm">انتخاب تاریخ</string>
     <string name="date_picker_close">بستن</string>
+    <string name="home_log_mileage">ثبت کارکرد</string>
     <string name="home_update_mileage">به‌روزرسانی کیلومتر</string>
     <string name="odometer_sheet_title">ثبت کارکرد خودرو</string>
     <string name="odometer_edit_title">ویرایش کارکرد</string>
@@ -264,4 +276,21 @@
     <string name="settings_about_title">درباره برنامه و حریم خصوصی</string>
     <string name="settings_version_label">نسخه %1$s (ساخت %2$s)</string>
     <string name="settings_offline_privacy">دفتر خودرو کاملاً آفلاین است، تبلیغات و ردیابی ندارد و به اینترنت متصل نمی‌شود. همهٔ اطلاعات شما فقط در حافظهٔ دستگاه خودتان نگهداری می‌شود.</string>
+
+    <!-- Trip Calculator -->
+    <string name="trip_calculator_title">محاسبه‌گر هزینه سفر</string>
+    <string name="trip_distance_label">مسافت سفر (کیلومتر)</string>
+    <string name="trip_distance_hint">مثال: ۵۰۰</string>
+    <string name="trip_consumption_label">مصرف سوخت (لیتر در ۱۰۰ کیلومتر)</string>
+    <string name="trip_consumption_hint">مثال: ۸٫۰</string>
+    <string name="trip_rate_label">قیمت هر لیتر بنزین (تومان)</string>
+    <string name="trip_rate_hint">مثال: ۳۰۰۰</string>
+    <string name="trip_preset_ration">سهمیه‌ای (۱٬۵۰۰)</string>
+    <string name="trip_preset_free">آزاد (۳٬۰۰۰)</string>
+    <string name="trip_total_fuel_label">سوخت مورد نیاز</string>
+    <string name="trip_total_cost_label">هزینه تقریبی سوخت</string>
+    <string name="trip_unit_liter">لیتر</string>
+    <string name="trip_unit_toman">تومان</string>
+    <string name="trip_unit_km">کیلومتر</string>
+    <string name="trip_reset">پاک کردن مقادیر</string>
 </resources>
