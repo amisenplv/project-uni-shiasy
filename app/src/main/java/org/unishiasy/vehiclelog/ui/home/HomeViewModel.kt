@@ -51,6 +51,7 @@ data class HomeUiState(
     val mileageLoaded: Boolean = false,
     val listFailed: Boolean = false,
     val recentHistory: List<org.unishiasy.vehiclelog.data.local.HistoryEntry>? = null,
+    val allHistory: List<org.unishiasy.vehiclelog.data.local.HistoryEntry>? = null,
     val standaloneReadings: List<OdometerReadingEntity> = emptyList(),
     val odometerDraft: OdometerDraft? = null,
     val odometerFeedbackRes: Int? = null,
@@ -119,6 +120,7 @@ class HomeViewModel(
             selectedVehicleMileage = null,
             mileageLoaded = false,
             recentHistory = null,
+            allHistory = null,
             standaloneReadings = emptyList(),
             odometerDraft = null,
             odometerFeedbackRes = null,
@@ -366,10 +368,10 @@ class HomeViewModel(
                 ledgerRepository.observeHistoryForVehicle(selectedId)
                     .catch { failure ->
                         if (failure !is SQLiteException && failure !is IllegalStateException) throw failure
-                        updateSelectedVehicle(selectedId) { it.copy(recentHistory = emptyList()) }
+                        updateSelectedVehicle(selectedId) { it.copy(recentHistory = emptyList(), allHistory = emptyList()) }
                     }
                     .collect { history ->
-                        updateSelectedVehicle(selectedId) { it.copy(recentHistory = history.take(3)) }
+                        updateSelectedVehicle(selectedId) { it.copy(recentHistory = history.take(3), allHistory = history) }
                     }
             }
             launch {

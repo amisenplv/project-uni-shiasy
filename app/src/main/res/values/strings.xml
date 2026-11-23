@@ -293,4 +293,14 @@
     <string name="trip_unit_toman">تومان</string>
     <string name="trip_unit_km">کیلومتر</string>
     <string name="trip_reset">پاک کردن مقادیر</string>
+
+    <!-- Home Screen Redesign -->
+    <string name="home_average_consumption">میانگین مصرف</string>
+    <string name="home_consumption_unit">در ۱۰۰ کیلومتر</string>
+    <string name="home_consumption_insufficient">ثبت ۲ باک پر</string>
+    <string name="home_quick_overview">آمار کلی</string>
+    <string name="home_quick_monthly">گزارش ماهانه</string>
+    <string name="home_monthly_expense">هزینه این ماه</string>
+    <string name="home_latest_fuel_price">آخرین نرخ سوخت</string>
+    <string name="home_active_reminders">یادآورهای فعال</string>
 </resources>

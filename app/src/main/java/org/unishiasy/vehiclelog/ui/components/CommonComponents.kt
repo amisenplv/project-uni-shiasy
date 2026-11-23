@@ -209,6 +209,7 @@ fun MetricCard(
     subtitle: String? = null,
     icon: ImageVector,
     modifier: Modifier = Modifier,
+    valueTestTag: String? = null,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -244,6 +245,7 @@ fun MetricCard(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
+                modifier = if (valueTestTag != null) Modifier.testTag(valueTestTag) else Modifier,
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
