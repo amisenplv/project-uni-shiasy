@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -235,6 +236,7 @@ internal fun HomeScreen(
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(
+                                        modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     ) {
@@ -245,21 +247,30 @@ internal fun HomeScreen(
                                                 textDirection = TextDirection.ContentOrRtl,
                                             ),
                                             color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
+                                            maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.testTag("homeSelectedVehicleName"),
+                                            modifier = Modifier
+                                                .weight(1f, fill = false)
+                                                .testTag("homeSelectedVehicleName"),
                                         )
-                                        Text(
-                                            text = "⌄",
-                                            color = MaterialTheme.colorScheme.primary,
-                                            style = MaterialTheme.typography.titleMedium,
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .sizeIn(minWidth = 20.dp, minHeight = 20.dp)
+                                                .testTag("homeVehicleSwitchIndicator"),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = "⌄",
+                                                color = MaterialTheme.colorScheme.primary,
+                                                style = MaterialTheme.typography.titleMedium,
+                                            )
+                                        }
                                     }
                                     Text(
                                         text = headerSummary,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
+                                        maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.testTag("homeVehicleHeaderSummary"),
                                     )
@@ -268,6 +279,7 @@ internal fun HomeScreen(
                             IconButton(
                                 onClick = { onEditVehicle(selectedVehicle) },
                                 modifier = Modifier
+                                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                     .size(48.dp)
                                     .testTag("homeEditVehicle:${selectedVehicle.id}"),
                             ) {

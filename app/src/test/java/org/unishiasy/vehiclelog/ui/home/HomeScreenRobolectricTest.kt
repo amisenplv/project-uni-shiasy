@@ -4,19 +4,32 @@ import android.content.Context
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.room.Room
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -28,6 +41,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.unishiasy.vehiclelog.MainActivity
 import org.unishiasy.vehiclelog.data.LedgerRepository
+import org.unishiasy.vehiclelog.data.OdometerInput
 import org.unishiasy.vehiclelog.data.VehicleRepository
 import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.data.local.ReminderEntity
@@ -73,27 +87,47 @@ class HomeScreenRobolectricTest {
     }
 
     private fun renderHomeScreen(
-        state: HomeUiState,
+        state: HomeUiState? = null,
         dueReminders: List<ReminderEntity>? = null,
         onOpenDashboard: (VehicleEntity) -> Unit = {},
         onOpenHistory: (VehicleEntity) -> Unit = {},
         onOpenReminders: (VehicleEntity) -> Unit = {},
+        onEditVehicle: (VehicleEntity) -> Unit = {},
+        fontScale: Float = 1.0f,
+        widthDp: Int? = null,
     ) {
         val act = compose.activity
         act.runOnUiThread {
             act.setContent {
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    VehicleLogTheme {
-                        HomeScreen(
-                            viewModel = homeVm,
-                            state = state,
-                            onOpenHistory = onOpenHistory,
-                            onOpenDashboard = { v, _ -> onOpenDashboard(v) },
-                            onAddVehicle = {},
-                            onEditVehicle = {},
-                            onOpenReminders = onOpenReminders,
-                            dueReminders = dueReminders,
-                        )
+                val currentDensity = LocalDensity.current
+                val density = if (fontScale != 1.0f) {
+                    Density(currentDensity.density, fontScale = fontScale)
+                } else currentDensity
+                CompositionLocalProvider(
+                    LocalLayoutDirection provides LayoutDirection.Rtl,
+                    LocalDensity provides density,
+                ) {
+                    Box(
+                        modifier = if (widthDp != null) Modifier.width(widthDp.dp).fillMaxHeight() else Modifier
+                    ) {
+                        VehicleLogTheme {
+                            val currentState = if (state != null) {
+                                state
+                            } else {
+                                val s by homeVm.state.collectAsStateWithLifecycle()
+                                s
+                            }
+                            HomeScreen(
+                                viewModel = homeVm,
+                                state = currentState,
+                                onOpenHistory = onOpenHistory,
+                                onOpenDashboard = { v, _ -> onOpenDashboard(v) },
+                                onAddVehicle = {},
+                                onEditVehicle = onEditVehicle,
+                                onOpenReminders = onOpenReminders,
+                                dueReminders = dueReminders,
+                            )
+                        }
                     }
                 }
             }
@@ -237,5 +271,83 @@ class HomeScreenRobolectricTest {
         // Click quick action chip
         compose.onNodeWithTag("homeChip:monthly").performClick()
         assertTrue(dashboardOpened)
+    }
+
+    @Test
+    fun longVehicleNamesDifferingAtEndRemainIdentifiableAtNarrowWidth() {
+        val vehicle1 = VehicleEntity(
+            id = "vehicle-206-1388",
+            kind = "car",
+            displayLabel = "پژو ۲۰۶ تیپ ۲ سفید مدل ۱۳۸۸",
+        )
+        val vehicle2 = VehicleEntity(
+            id = "vehicle-206-1390",
+            kind = "car",
+            displayLabel = "پژو ۲۰۶ تیپ ۲ سفید مدل ۱۳۹۰",
+        )
+
+        runBlocking {
+            database.vehicleDao().insert(vehicle1)
+            database.vehicleDao().insert(vehicle2)
+            ledgerRepo.createStandaloneReading(
+                UUID.randomUUID(),
+                OdometerInput(vehicle1.id, "2026-11-23", 123456L)
+            )
+            ledgerRepo.createStandaloneReading(
+                UUID.randomUUID(),
+                OdometerInput(vehicle2.id, "2026-11-23", 123456L)
+            )
+        }
+
+        renderHomeScreen(
+            fontScale = 1.5f,
+            widthDp = 320,
+        )
+
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("homeSelectedVehicleCard").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // 1. Assert that the full distinguishing text of the selected vehicle is displayed
+        compose.onNodeWithTag("homeSelectedVehicleName", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("پژو ۲۰۶ تیپ ۲ سفید مدل ۱۳۸۸")
+        compose.onNodeWithTag("homeVehicleHeaderSummary", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("پژو ۲۰۶ تیپ ۲ سفید مدل ۱۳۸۸", substring = true)
+            .assertTextContains("۱۲۳٬۴۵۶ کیلومتر", substring = true)
+
+        // 2. Assert that the switch indicator is displayed
+        compose.onNodeWithTag("homeVehicleSwitchIndicator", useUnmergedTree = true)
+            .assertIsDisplayed()
+
+        // 3. Assert that the edit button is displayed and has >= 48dp touch target
+        compose.onNodeWithTag("homeEditVehicle:${vehicle1.id}")
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+
+        // 4. Switch to the second vehicle, verify its distinguishing text is displayed
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("switchVehicle:${vehicle2.id}").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("switchVehicle:${vehicle2.id}").performClick()
+
+        compose.waitUntil(5_000) {
+            homeVm.state.value.selectedVehicle?.id == vehicle2.id
+        }
+
+        compose.onNodeWithTag("homeSelectedVehicleName", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("پژو ۲۰۶ تیپ ۲ سفید مدل ۱۳۹۰")
+        compose.onNodeWithTag("homeVehicleHeaderSummary", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("پژو ۲۰۶ تیپ ۲ سفید مدل ۱۳۹۰", substring = true)
+            .assertTextContains("۱۲۳٬۴۵۶ کیلومتر", substring = true)
+        compose.onNodeWithTag("homeEditVehicle:${vehicle2.id}")
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
     }
 }
