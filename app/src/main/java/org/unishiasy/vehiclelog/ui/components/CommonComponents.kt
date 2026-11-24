@@ -267,6 +267,7 @@ fun CircularIconBadge(
     backgroundColor: Color,
     iconColor: Color,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -276,7 +277,7 @@ fun CircularIconBadge(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = contentDescription,
             tint = iconColor,
             modifier = Modifier.size(20.dp),
         )
@@ -289,6 +290,7 @@ fun CircularIconBadge(
     backgroundColor: Color,
     iconColor: Color,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -298,7 +300,7 @@ fun CircularIconBadge(
     ) {
         Icon(
             painter = painter,
-            contentDescription = null,
+            contentDescription = contentDescription,
             tint = iconColor,
             modifier = Modifier.size(20.dp),
         )

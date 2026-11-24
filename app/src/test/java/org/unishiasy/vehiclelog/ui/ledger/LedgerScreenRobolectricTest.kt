@@ -167,6 +167,9 @@ class LedgerScreenRobolectricTest {
         ledgerVm.openVehicle(testVehicle)
         renderLedgerHost()
 
+        // Check category label inside card
+        compose.onNodeWithTag("ledgerRecent:$entryId").assertTextContains("سوخت")
+
         // Check amount inside card
         compose.onNodeWithTag("ledgerRecent:$entryId").assertIsDisplayed().assertTextContains("۱۲۰٬۰۰۰ تومان")
 
@@ -179,6 +182,29 @@ class LedgerScreenRobolectricTest {
 
         // Check full tank badge inside card
         compose.onNodeWithTag("ledgerRecent:$entryId").assertTextContains("باک پر")
+    }
+
+    @Test
+    fun handlesZeroRateAndUnpricedFuelGracefullyWithoutCrashing(): Unit = runBlocking {
+        val entryId = UUID.randomUUID()
+        ledgerRepo.create(
+            id = entryId,
+            createdAtEpochMillis = 1000L,
+            input = EntryInput(
+                vehicleId = testVehicle.id,
+                category = "fuel",
+                occurredOn = "2026-10-25",
+                amountRials = 1L, // Extremely small amount that yields ratePerLiterToman == 0
+                fuelVolumeLiters = "4000",
+            ),
+        )
+
+        ledgerVm.openVehicle(testVehicle)
+        renderLedgerHost()
+
+        // Card should display safely with liters without crashing
+        compose.onNodeWithTag("ledgerRecent:$entryId").assertIsDisplayed()
+        compose.onNode(hasText("۴۰۰۰", substring = true) and hasText("لیتر", substring = true)).assertIsDisplayed()
     }
 
     @Test

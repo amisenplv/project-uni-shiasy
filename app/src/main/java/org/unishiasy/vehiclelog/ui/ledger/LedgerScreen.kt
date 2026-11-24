@@ -633,6 +633,7 @@ private fun HistoryView(
 @Composable
 private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
     val category = EntryCategory.entries.firstOrNull { it.key == entry.category }
+    val categoryLabel = stringResource((category ?: EntryCategory.Other).label)
     val date = JalaliDates.formatGregorian(entry.occurredOn)
         ?: "\u2066${entry.occurredOn.withPersianDigits()}\u2069"
     val mileage = entry.linkedOdometerKm?.let {
@@ -667,7 +668,7 @@ private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Header Row: Circular Icon Badge, Date, Linked Odometer, and Amount
+            // Header Row: Circular Icon Badge, Category Title, Date, Linked Odometer, and Amount
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -677,11 +678,12 @@ private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
                     painter = painterResource(iconRes),
                     backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     iconColor = MaterialTheme.colorScheme.primary,
+                    contentDescription = categoryLabel,
                     modifier = Modifier.size(40.dp),
                 )
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -689,9 +691,25 @@ private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
+                            text = categoryLabel,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
                             text = date,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = amount,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         if (mileage != null) {
                             Text(
@@ -701,11 +719,6 @@ private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
                             )
                         }
                     }
-                    Text(
-                        text = amount,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
                 }
             }
 
@@ -714,9 +727,11 @@ private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 val liters = java.math.BigDecimal.valueOf(entry.fuelVolumeMl, 3).stripTrailingZeros().toPlainString()
                     .replace('.', '٫').withPersianDigits()
-                val breakdownText = if (entry.amountRials != null && entry.fuelVolumeMl > 0) {
-                    val ratePerLiterToman = Math.round((entry.amountRials / 10.0) / (entry.fuelVolumeMl.toDouble() / 1000.0))
-                    val rateFormatted = Money.formatTomanInput(ratePerLiterToman * 10L)
+                val ratePerLiterToman = if (entry.amountRials != null && entry.fuelVolumeMl > 0) {
+                    Math.round((entry.amountRials / 10.0) / (entry.fuelVolumeMl.toDouble() / 1000.0))
+                } else 0L
+                val breakdownText = if (entry.amountRials != null && entry.fuelVolumeMl > 0 && ratePerLiterToman > 0L) {
+                    val rateFormatted = ratePerLiterToman.toPersianGroupedDigits()
                     stringResource(R.string.ledger_fuel_rate_breakdown, "\u2066$liters\u2069", "\u2066$rateFormatted\u2069")
                 } else {
                     stringResource(R.string.ledger_liters, "\u2066$liters\u2069")
