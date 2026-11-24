@@ -209,6 +209,8 @@
     <string name="reminders_status_due_badge">سررسیدشده</string>
     <string name="reminders_remaining_km">%1$s کیلومتر باقی‌مانده</string>
     <string name="entry_mileage_and_notes">کارکرد و یادداشت (اختیاری)</string>
+    <string name="state_expanded">بازشده</string>
+    <string name="state_collapsed">بسته‌شده</string>
     <string name="delete_confirm_sheet_title">این ثبت حذف شود؟</string>
     <string name="delete_confirm_sheet_action">حذف ثبت</string>
     <string name="dock_home">خانه</string>

@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -273,5 +277,63 @@ class LedgerScreenRobolectricTest {
         assertNotNull("Entry should be saved", saved)
         assertEquals("پمپ بنزین آزادی", saved?.stationName)
         assertEquals(true, saved?.isFullTank)
+    }
+
+    @Test
+    fun optionalMileageDisclosureExposesAccessibilityStateAndPersistsInputAcrossToggle(): Unit = runBlocking {
+        ledgerVm.openQuickAdd(testVehicle, EntryCategory.Fuel)
+        renderLedgerHost()
+
+        val toggle = compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo()
+        toggle.assertIsDisplayed()
+
+        // 1. Initially collapsed: exposes Role.Button and stateDescription «بسته‌شده»
+        toggle.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        toggle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "بسته‌شده"))
+        toggle.assertTextContains("کارکرد و یادداشت (اختیاری)")
+
+        // 2. Triangle indicator is decorative (no separate accessibility node with "▼" or "▲")
+        compose.onNodeWithText("▼").assertDoesNotExist()
+        compose.onNodeWithText("▲").assertDoesNotExist()
+
+        // 3. Collapsed fields leave the accessibility hierarchy
+        compose.onNodeWithTag("ledgerMileage").assertDoesNotExist()
+        compose.onNodeWithTag("ledgerNotes").assertDoesNotExist()
+
+        // 4. Expand disclosure
+        toggle.performClick()
+        compose.waitForIdle()
+
+        // Exposes stateDescription «بازشده» when expanded
+        toggle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "بازشده"))
+
+        // Triangle still decorative
+        compose.onNodeWithText("▼").assertDoesNotExist()
+        compose.onNodeWithText("▲").assertDoesNotExist()
+
+        // Fields are now in the accessibility hierarchy
+        compose.onNodeWithTag("ledgerMileage").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("ledgerNotes").performScrollTo().assertIsDisplayed()
+
+        // 5. Enter mileage
+        compose.onNodeWithTag("ledgerMileage").performScrollTo().performTextInput("123456")
+        compose.waitForIdle()
+        assertEquals("123456", ledgerVm.state.value.draft?.mileage)
+
+        // 6. Collapse and verify hidden fields leave accessibility hierarchy
+        toggle.performScrollTo().performClick()
+        compose.waitForIdle()
+
+        toggle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "بسته‌شده"))
+        compose.onNodeWithTag("ledgerMileage").assertDoesNotExist()
+        compose.onNodeWithTag("ledgerNotes").assertDoesNotExist()
+
+        // 7. Reopen and verify value persists across collapse and reopen
+        toggle.performScrollTo().performClick()
+        compose.waitForIdle()
+
+        toggle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "بازشده"))
+        compose.onNodeWithTag("ledgerMileage").performScrollTo().assertIsDisplayed()
+        assertEquals("123456", ledgerVm.state.value.draft?.mileage)
     }
 }

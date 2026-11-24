@@ -77,10 +77,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -1129,11 +1133,21 @@ private fun EntryForm(
         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val disclosureStateDesc = stringResource(
+                if (detailsExpanded) R.string.state_expanded else R.string.state_collapsed
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
-                    .clickable { detailsExpanded = !detailsExpanded }
+                    .semantics(mergeDescendants = true) {
+                        role = Role.Button
+                        stateDescription = disclosureStateDesc
+                    }
+                    .clickable(
+                        role = Role.Button,
+                        onClick = { detailsExpanded = !detailsExpanded },
+                    )
                     .testTag("ledgerDetailsToggle"),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -1145,6 +1159,7 @@ private fun EntryForm(
                 )
                 Text(
                     if (detailsExpanded) "▲" else "▼",
+                    modifier = Modifier.clearAndSetSemantics { },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                 )
