@@ -102,7 +102,6 @@
     <string name="ledger_station_name_hint">نمونه: جایگاه آزادی</string>
     <string name="ledger_rate_per_liter">%1$s تومان/لیتر</string>
     <string name="ledger_fuel_rate_breakdown">%1$s لیتر ← %2$s تومان/لیتر</string>
-    <string name="ledger_cancel">انصراف</string>
     <string name="history_month_summary">%1$s تومان</string>
     <string name="dashboard_title">گزارش ماهانه</string>
     <string name="dashboard_back">بازگشت</string>

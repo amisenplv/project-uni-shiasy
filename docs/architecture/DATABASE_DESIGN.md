@@ -5,7 +5,7 @@
 | Record | Fields and constraints |
 |---|---|
 | Vehicle | Stable ID, kind, display label, optional catalog key, optional production year and calendar. Preserve the selected label if bundled catalog data later changes. Support several rows while the pilot UI works with one active vehicle. |
-| Entry | Stable ID, vehicle foreign key, category, occurrence date, creation instant, optional notes, and optional amount for maintenance-only entries. Fuel requires a positive amount and a positive volume stored in whole milliliters. |
+| Entry | Stable ID, vehicle foreign key, category, occurrence date, creation instant, optional notes, optional amount for maintenance-only entries, optional station name, and full-tank indicator flag (schema v5). Fuel requires a positive amount and a positive volume stored in whole milliliters. |
 | Odometer reading | Stable ID, vehicle foreign key, occurrence date, whole kilometers, and optional unique entry reference. Support a standalone reading or one linked reading per entry. |
 | Reminder | Stable ID, vehicle foreign key, title, exactly one due date or kilometer threshold, and active, completed, or canceled state. Record enough notification state to avoid repeatedly posting the same due reminder. |
 | Recovery metadata | Local backup state and last acknowledged cloud revision. Keep credentials in separate Keystore-protected storage. |

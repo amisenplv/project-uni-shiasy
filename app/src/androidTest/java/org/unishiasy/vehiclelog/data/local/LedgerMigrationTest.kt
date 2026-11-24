@@ -156,6 +156,34 @@ class LedgerMigrationTest {
     }
 
     @Test
+    fun migratesPopulatedV4ToV5AndPreservesEntriesWithDefaults() = runBlocking<Unit> {
+        val name = "v4-to-v5-migration-test-${UUID.randomUUID()}.db"
+        val entry = EntryEntity(
+            UUID.randomUUID().toString(), vehicles[0].id, "fuel", "2026-11-15",
+            1_794_300_000_000L, "بنزین", 150_000_0L, 50_000L,
+            stationName = null, isFullTank = false,
+        )
+        try {
+            createFixture(name, version = 4, entries = listOf(entry))
+            openLatest(name).useDatabase { migrated ->
+                val loaded = migrated.ledgerDao().findById(entry.id)
+                assertEquals(entry, loaded)
+                assertNull(loaded?.stationName)
+                assertEquals(false, loaded?.isFullTank)
+                freshDatabase().useDatabase { fresh ->
+                    assertEquals(ledgerSchema(fresh.openHelper.readableDatabase), ledgerSchema(migrated.openHelper.readableDatabase))
+                }
+            }
+            openLatest(name).useDatabase { reopened ->
+                val loaded = reopened.ledgerDao().findById(entry.id)
+                assertEquals(entry, loaded)
+            }
+        } finally {
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
     fun reminderWritesAndLifecycleAreVehicleScoped() = runBlocking<Unit> {
         freshDatabase().useDatabase { database ->
             val vehicle = vehicles[0]
