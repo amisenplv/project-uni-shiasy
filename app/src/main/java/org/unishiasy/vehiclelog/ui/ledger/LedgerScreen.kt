@@ -763,7 +763,7 @@ private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
                 val liters = java.math.BigDecimal.valueOf(entry.fuelVolumeMl, 3).stripTrailingZeros().toPlainString()
                     .replace('.', '٫').withPersianDigits()
                 val ratePerLiterToman = if (entry.amountRials != null && entry.fuelVolumeMl > 0) {
-                    Math.round((entry.amountRials / 10.0) / (entry.fuelVolumeMl.toDouble() / 1000.0))
+                    kotlin.math.round((entry.amountRials / 10.0) / (entry.fuelVolumeMl.toDouble() / 1000.0)).toLong()
                 } else 0L
                 val breakdownText = if (entry.amountRials != null && entry.fuelVolumeMl > 0 && ratePerLiterToman > 0L) {
                     val rateFormatted = ratePerLiterToman.toPersianGroupedDigits()
