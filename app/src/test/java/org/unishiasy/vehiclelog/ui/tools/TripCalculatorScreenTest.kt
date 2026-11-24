@@ -215,5 +215,6 @@ class TripCalculatorScreenTest {
         compose.onNodeWithTag("tripConsumptionInput").assertHeightIsAtLeast(48.dp)
         compose.onNodeWithTag("ratePreset:1500").assertHeightIsAtLeast(48.dp)
         compose.onNodeWithTag("ratePreset:3000").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("tripResetButton").assertHeightIsAtLeast(48.dp)
     }
 }
