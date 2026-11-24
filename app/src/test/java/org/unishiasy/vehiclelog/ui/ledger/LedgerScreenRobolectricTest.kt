@@ -333,7 +333,7 @@ class LedgerScreenRobolectricTest {
         compose.waitForIdle()
 
         toggle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "بازشده"))
-        compose.onNodeWithTag("ledgerMileage").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("ledgerMileage").performScrollTo().assertIsDisplayed().assertTextContains("123456")
         assertEquals("123456", ledgerVm.state.value.draft?.mileage)
     }
 }

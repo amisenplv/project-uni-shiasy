@@ -1141,7 +1141,6 @@ private fun EntryForm(
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
                     .semantics(mergeDescendants = true) {
-                        role = Role.Button
                         stateDescription = disclosureStateDesc
                     }
                     .clickable(
