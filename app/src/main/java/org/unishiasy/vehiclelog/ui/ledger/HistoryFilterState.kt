@@ -18,6 +18,7 @@ internal data class HistoryMonthGroup(
     val monthKey: String,
     val headerLabel: String,
     val entries: List<HistoryEntry>,
+    val totalRials: Long = entries.mapNotNull { it.amountRials }.sum(),
 )
 
 internal fun normalizeSearchText(raw: String): String {
@@ -47,6 +48,7 @@ internal fun filterAndGroupHistory(
 
         val label = categoryLabels[entry.category].orEmpty()
         val notes = entry.notes.orEmpty()
+        val station = entry.stationName.orEmpty()
         val jalaliLabel = JalaliDates.formatGregorian(entry.occurredOn).orEmpty()
         val jalaliSlash = JalaliDates.formatJalaliInput(entry.occurredOn).orEmpty()
         val amountText = entry.amountRials?.let { Money.formatTomanInput(it) }.orEmpty()
@@ -55,7 +57,7 @@ internal fun filterAndGroupHistory(
             java.math.BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString()
         }.orEmpty()
 
-        val haystack = normalizeSearchText("$label $notes $jalaliLabel $jalaliSlash $amountText $kmText $litersText")
+        val haystack = normalizeSearchText("$label $notes $station $jalaliLabel $jalaliSlash $amountText $kmText $litersText")
         normalizedQuery in haystack
     }
 

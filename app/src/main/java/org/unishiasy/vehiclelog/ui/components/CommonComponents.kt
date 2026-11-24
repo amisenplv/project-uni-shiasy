@@ -283,6 +283,28 @@ fun CircularIconBadge(
     }
 }
 
+@Composable
+fun CircularIconBadge(
+    painter: androidx.compose.ui.graphics.painter.Painter,
+    backgroundColor: Color,
+    iconColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painter,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
 /**
  * Status badge pill.
  */

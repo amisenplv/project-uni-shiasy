@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -13,12 +12,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,11 +23,15 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -39,10 +40,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,11 +52,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,10 +65,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -84,10 +85,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -95,19 +94,27 @@ import androidx.lifecycle.repeatOnLifecycle
 import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.data.EntrySaveResult
 import org.unishiasy.vehiclelog.data.VehicleSaveResult
+import org.unishiasy.vehiclelog.data.allowsUnpricedEntry
 import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.Money
+import org.unishiasy.vehiclelog.domain.normalizeInputDigits
+import org.unishiasy.vehiclelog.domain.toPersianGroupedDigits
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.CircularIconBadge
 import org.unishiasy.vehiclelog.ui.components.DismissibleHeading
 import org.unishiasy.vehiclelog.ui.components.HeaderCloseButton
 import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
 import org.unishiasy.vehiclelog.ui.components.AppBottomDock
+import org.unishiasy.vehiclelog.ui.components.StatusPill
 import org.unishiasy.vehiclelog.ui.components.StickyFormFooter
+import org.unishiasy.vehiclelog.ui.components.LedgerFab
+import org.unishiasy.vehiclelog.ui.components.LedgerFabContentClearance
 import org.unishiasy.vehiclelog.ui.components.EntrySelectorSheet
 import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.components.MainTab
+import org.unishiasy.vehiclelog.ui.components.PersianNumericTransformation
 import org.unishiasy.vehiclelog.ui.components.TomanVisualTransformation
 import org.unishiasy.vehiclelog.ui.home.HomeScreen
 import org.unishiasy.vehiclelog.ui.home.HomeViewModel
@@ -158,12 +165,32 @@ internal fun LedgerHost(
     val reminderVehicle = reminderState?.vehicle
 
     val currentVehicle = vehicle ?: reminderVehicle ?: homeState?.selectedVehicle
+    val entryFabFocus = remember { FocusRequester() }
+    var restoreEntryFabFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(restoreEntryFabFocus) {
+        if (restoreEntryFabFocus) {
+            entryFabFocus.requestFocus()
+            restoreEntryFabFocus = false
+        }
+    }
+
     var showEntrySelector by rememberSaveable { mutableStateOf(false) }
+    val entryFab: @Composable () -> Unit = {
+        LedgerFab(
+            labelRes = R.string.dock_new_entry,
+            onClick = { showEntrySelector = true },
+            modifier = Modifier.focusRequester(entryFabFocus).testTag("entryFab"),
+        )
+    }
     var reminderAddTrigger by rememberSaveable { mutableIntStateOf(0) }
 
     if (showEntrySelector && currentVehicle != null) {
         EntrySelectorSheet(
-            onDismiss = { showEntrySelector = false },
+            vehicleLabel = currentVehicle.displayLabel,
+            onDismiss = {
+                showEntrySelector = false
+                restoreEntryFabFocus = true
+            },
             onSelectFuel = {
                 showEntrySelector = false
                 ledger.openQuickAdd(currentVehicle, EntryCategory.Fuel)
@@ -171,10 +198,6 @@ internal fun LedgerHost(
             onSelectExpense = {
                 showEntrySelector = false
                 ledger.openQuickAdd(currentVehicle, EntryCategory.Other)
-            },
-            onSelectService = {
-                showEntrySelector = false
-                ledger.openQuickAdd(currentVehicle, EntryCategory.OilChange)
             },
         )
     }
@@ -223,13 +246,9 @@ internal fun LedgerHost(
                                 reminders?.open(currentVehicle)
                             }
                         }
-                    }
-                },
-                onPrimaryAction = {
-                    if (activeTab == MainTab.REMINDERS) {
-                        reminderAddTrigger++
-                    } else if (currentVehicle != null) {
-                        showEntrySelector = true
+                        MainTab.TOOLS -> {
+                            // Tools screen integration handled in Task 6
+                        }
                     }
                 },
             )
@@ -240,7 +259,8 @@ internal fun LedgerHost(
         val draft = state.draft
         val dashboard = state.dashboard
         val historyListState = rememberSaveable(vehicle.id, saver = LazyListState.Saver) { LazyListState() }
-        BackHandler(onBack = ledger::back)
+        val historyStateHolder = rememberSaveableStateHolder()
+        BackHandler(enabled = draft == null, onBack = ledger::back)
         Surface(Modifier.fillMaxSize()) {
             if (dashboard != null) {
                 MonthlyDashboardScreen(
@@ -251,7 +271,13 @@ internal fun LedgerHost(
                     ledger::back,
                 )
             } else if (draft == null) {
-                HistoryView(vehicle, state, ledger, historyListState, bottomBar = dockComposable)
+                historyStateHolder.SaveableStateProvider(vehicle.id) {
+                    HistoryView(
+                        vehicle, state, ledger, historyListState,
+                        bottomBar = dockComposable,
+                        floatingActionButton = entryFab,
+                    )
+                }
             } else {
                 key(draft.id) {
                     EntryFormScreen(vehicle, draft, state, ledger)
@@ -299,6 +325,7 @@ internal fun LedgerHost(
                     notificationOptions = reminderNotificationOptions,
                     bottomBar = dockComposable,
                     newReminderRequestCount = reminderAddTrigger,
+                    onNewReminder = { reminderAddTrigger++ },
                 )
                 return
             }
@@ -316,7 +343,6 @@ internal fun LedgerHost(
         HomeScreen(
             viewModel = home,
             state = checkNotNull(homeState),
-            onQuickAdd = ledger::openQuickAdd,
             onOpenHistory = ledger::openVehicle,
             onOpenDashboard = ledger::openDashboardForVehicle,
             onAddVehicle = vehicles::addVehicle,
@@ -326,7 +352,6 @@ internal fun LedgerHost(
             remindersFailed = homeReminders?.loadFailed == true,
             onRetryReminders = reminders?.let { it::retry },
             onOpenSettings = backupSettings?.let { it::open },
-            onOpenGeneralExpense = { selected -> ledger.openQuickAdd(selected, EntryCategory.Other) },
             onManageVehicles = vehicles::openManagement,
             onOpenEntry = ledger::openEntryFromHome,
             showVehicleSavedBanner = vehicleSaved,
@@ -334,11 +359,19 @@ internal fun LedgerHost(
             showStaleBackupBanner = showStaleBackupBanner,
             onDismissStaleBackup = { staleBackupDismissed = true },
             bottomBar = dockComposable,
+            floatingActionButton = entryFab,
         )
     } else {
         VehicleScreen(vehicles, ledger::openVehicle, backupSettings?.let { it::open })
     }
 }
+
+private data class HistoryDisplayItem(
+    val entry: HistoryEntry,
+    val monthKey: String? = null,
+    val monthHeader: String? = null,
+    val monthSummary: String? = null,
+)
 
 @Composable
 private fun HistoryView(
@@ -347,19 +380,20 @@ private fun HistoryView(
     ledger: LedgerViewModel,
     listState: LazyListState = rememberLazyListState(),
     bottomBar: @Composable () -> Unit = {},
+    floatingActionButton: @Composable () -> Unit,
 ) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             LedgerTopBar(
-                title = stringResource(R.string.ledger_title),
+                title = stringResource(R.string.dock_history),
                 subtitle = vehicle.displayLabel,
                 onBack = ledger::back,
             )
         },
         bottomBar = bottomBar,
+        floatingActionButton = floatingActionButton,
+        floatingActionButtonPosition = FabPosition.End,
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         Column(
@@ -370,47 +404,18 @@ private fun HistoryView(
         ) {
 
 
-            // Notebook Segmented Tabs (History & Report)
-            PrimaryTabRow(
-                selectedTabIndex = 0,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary,
-                indicator = {
-                    TabRowDefaults.PrimaryIndicator(
-                        modifier = Modifier.tabIndicatorOffset(0, matchContentSize = false),
-                        width = androidx.compose.ui.unit.Dp.Unspecified,
-                        height = 3.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                },
-                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) },
+            TextButton(
+                onClick = ledger::openDashboard,
+                enabled = !state.openingEntry && !state.deleting,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(horizontal = 16.dp)
+                    .heightIn(min = 48.dp)
+                    .testTag("ledgerOpenDashboard"),
             ) {
-                Tab(
-                    selected = true,
-                    onClick = { /* already on history */ },
-                    text = {
-                        Text(
-                            stringResource(R.string.notebook_history_tab),
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        )
-                    },
-                    modifier = Modifier.heightIn(min = 48.dp),
-                )
-                Tab(
-                    selected = false,
-                    onClick = ledger::openDashboard,
-                    text = {
-                        Text(
-                            stringResource(R.string.notebook_report_tab),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("ledgerOpenDashboard"),
-                )
+                Text(stringResource(R.string.dashboard_title))
             }
 
-            // Search & Category Filter Controls (above LazyColumn so list item indices remain stable)
             var searchQuery by rememberSaveable(vehicle.id) { mutableStateOf("") }
             var selectedCategoryKey by rememberSaveable(vehicle.id) { mutableStateOf<String?>(null) }
             val filterState = HistoryFilterState(query = searchQuery, categoryKey = selectedCategoryKey)
@@ -423,11 +428,15 @@ private fun HistoryView(
             }
             val displayItems = remember(monthGroups) {
                 monthGroups.flatMap { group ->
+                    val summary = if (group.totalRials > 0) {
+                        Money.formatTomanInput(group.totalRials)
+                    } else null
                     group.entries.mapIndexed { idx, entry ->
-                        Triple(
-                            entry,
-                            if (idx == 0) group.monthKey else null,
-                            if (idx == 0) group.headerLabel else null,
+                        HistoryDisplayItem(
+                            entry = entry,
+                            monthKey = if (idx == 0) group.monthKey else null,
+                            monthHeader = if (idx == 0) group.headerLabel else null,
+                            monthSummary = if (idx == 0) summary else null,
                         )
                     }
                 }
@@ -437,7 +446,7 @@ private fun HistoryView(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     OutlinedTextField(
@@ -491,49 +500,17 @@ private fun HistoryView(
                 }
             }
 
-            // History Records Content with Day Rail
+            // Recent records grouped by Jalali month.
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = LedgerFabContentClearance)
                     .testTag("ledgerHistoryList"),
                 contentPadding = PaddingValues(vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Button(
-                                onClick = ledger::newEntry,
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                                enabled = !state.openingEntry && !state.deleting,
-                                shape = VehicleLogShapes.medium,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                ),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_plus),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.ledger_add))
-                            }
-                        }
-                        ResultMessage(state.result, isDelete = state.lastActionWasDelete)
-                        Text(
-                            stringResource(R.string.ledger_history_title),
-                            Modifier.semantics { heading() },
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        )
-                    }
-                }
+                item { ResultMessage(state.result, isDelete = state.lastActionWasDelete) }
 
                 when {
                     state.listFailed -> {
@@ -613,21 +590,36 @@ private fun HistoryView(
                         }
                         items(
                             items = displayItems,
-                            key = { it.first.id },
-                        ) { (entry, monthKey, monthHeader) ->
+                            key = { it.entry.id },
+                        ) { item ->
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (monthHeader != null && monthKey != null) {
-                                    Text(
-                                        text = monthHeader,
+                                if (item.monthHeader != null && item.monthKey != null) {
+                                    Row(
                                         modifier = Modifier
-                                            .padding(top = 4.dp)
-                                            .semantics { heading() }
-                                            .testTag("historyMonthHeader:$monthKey"),
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp, bottom = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = item.monthHeader,
+                                            modifier = Modifier
+                                                .semantics { heading() }
+                                                .testTag("historyMonthHeader:${item.monthKey}"),
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        if (item.monthSummary != null) {
+                                            Text(
+                                                text = stringResource(R.string.dashboard_toman, item.monthSummary),
+                                                modifier = Modifier.testTag("historyMonthSummary:${item.monthKey}"),
+                                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
                                 }
-                                HistoryDayRailRow(entry, state, ledger)
+                                HistoryRecordRow(item.entry) { ledger.inspectEntry(item.entry.id) }
                             }
                         }
                     }
@@ -639,17 +631,19 @@ private fun HistoryView(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger: LedgerViewModel) {
-    val semanticColors = LocalVehicleLogSemanticColors.current
-    val categoryLabelRes = when (entry.category) {
-        "fuel" -> R.string.ledger_fuel
-        "oil_change" -> R.string.ledger_oil_change
-        "repair" -> R.string.ledger_repair
-        "insurance" -> R.string.ledger_insurance
-        "wash" -> R.string.ledger_wash
-        "parts" -> R.string.ledger_parts
-        else -> R.string.ledger_other
-    }
+private fun HistoryRecordRow(entry: HistoryEntry, onClick: () -> Unit) {
+    val category = EntryCategory.entries.firstOrNull { it.key == entry.category }
+    val date = JalaliDates.formatGregorian(entry.occurredOn)
+        ?: "\u2066${entry.occurredOn.withPersianDigits()}\u2069"
+    val mileage = entry.linkedOdometerKm?.let {
+        stringResource(R.string.ledger_kilometers, "\u2066${it.toPersianGroupedDigits()}\u2069")
+    } ?: if (category?.let { allowsUnpricedEntry(it.key) } == true) {
+        stringResource(R.string.ledger_no_recorded_mileage)
+    } else null
+    val amount = entry.amountRials?.let {
+        stringResource(R.string.dashboard_toman, Money.formatTomanInput(it))
+    } ?: stringResource(R.string.ledger_unpriced)
+
     val iconRes = when (entry.category) {
         "fuel" -> R.drawable.ic_fuel
         "oil_change" -> R.drawable.ic_drop
@@ -657,180 +651,129 @@ private fun HistoryDayRailRow(entry: HistoryEntry, state: LedgerUiState, ledger:
         else -> R.drawable.ic_file
     }
 
-    // Extract Day Number for the Day Rail
-    val jalaliDateStr = JalaliDates.formatGregorian(entry.occurredOn) ?: entry.occurredOn
-    val dayNumber = jalaliDateStr.split(" ").firstOrNull()?.withPersianDigits() ?: "۱"
-
-    Row(
+    Surface(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .heightIn(min = 48.dp)
+            .testTag("ledgerRecent:${entry.id}"),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        // Day Rail Column (40dp Day Pill + Vertical Connecting Rail)
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(40.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(semanticColors.wash),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = dayNumber,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = semanticColors.action,
-                    ),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .width(1.5.dp)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            )
-        }
-
-        // Record Card
-        Card(
             modifier = Modifier
-                .weight(1f)
-                .clickable { ledger.inspectEntry(entry.id) }
-                .testTag("ledgerRecent:${entry.id}"),
-            shape = VehicleLogShapes.medium,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            // Header Row: Circular Icon Badge, Date, Linked Odometer, and Amount
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                CircularIconBadge(
+                    painter = painterResource(iconRes),
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    iconColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(semanticColors.wash),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = painterResource(iconRes),
-                                contentDescription = null,
-                                tint = semanticColors.action,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                stringResource(categoryLabelRes),
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            if (entry.linkedOdometerKm == null) {
-                                Text(
-                                    jalaliDateStr,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (entry.amountRials != null) {
-                            Text(
-                                stringResource(
-                                    R.string.dashboard_toman,
-                                    Money.formatTomanInput(entry.amountRials),
-                                ),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.End,
-                            )
-                        } else {
-                            Text(
-                                stringResource(R.string.ledger_unpriced),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-
-                // Volume, Mileage & Notes Details
-                val hasDetails = entry.fuelVolumeMl != null || entry.linkedOdometerKm != null || !entry.notes.isNullOrBlank()
-                if (hasDetails) {
-                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        entry.fuelVolumeMl?.let { volumeMl ->
-                            val liters = java.math.BigDecimal.valueOf(volumeMl, 3).stripTrailingZeros().toPlainString()
-                                .replace('.', '٫').withPersianDigits()
-                            Text(
-                                stringResource(R.string.ledger_liters, "\u2066$liters\u2069"),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        entry.linkedOdometerKm?.let { km ->
-                            Text(
-                                jalaliDateStr,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            val kmString = km.toString().withPersianDigits()
-                            Text(
-                                stringResource(R.string.ledger_kilometers, "\u2066$kmString\u2069"),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    entry.notes?.takeIf { it.isNotBlank() }?.let { notes ->
                         Text(
-                            notes,
-                            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.ContentOrRtl),
+                            text = date,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (mileage != null) {
+                            Text(
+                                text = mileage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
+                    Text(
+                        text = amount,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
+            }
 
+            // Fuel volume & unit rate breakdown
+            if (entry.fuelVolumeMl != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                val liters = java.math.BigDecimal.valueOf(entry.fuelVolumeMl, 3).stripTrailingZeros().toPlainString()
+                    .replace('.', '٫').withPersianDigits()
+                val breakdownText = if (entry.amountRials != null && entry.fuelVolumeMl > 0) {
+                    val ratePerLiterToman = Math.round((entry.amountRials / 10.0) / (entry.fuelVolumeMl.toDouble() / 1000.0))
+                    val rateFormatted = Money.formatTomanInput(ratePerLiterToman * 10L)
+                    stringResource(R.string.ledger_fuel_rate_breakdown, "\u2066$liters\u2069", "\u2066$rateFormatted\u2069")
+                } else {
+                    stringResource(R.string.ledger_liters, "\u2066$liters\u2069")
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_drop),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = breakdownText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
-                // Actions row on Card (Edit + Delete)
+            // Station Name
+            if (!entry.stationName.isNullOrBlank()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_pin),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = entry.stationName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // Status Pill (Full Tank)
+            if (entry.isFullTank) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(
-                        onClick = { ledger.requestDelete(entry.id) },
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("ledgerDelete:${entry.id}"),
-                        enabled = !state.openingEntry && !state.deleting,
-                    ) {
-                        Text(
-                            stringResource(R.string.ledger_delete),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
+                    StatusPill(
+                        text = stringResource(R.string.ledger_full_tank),
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.testTag("entryFullTank:${entry.id}"),
+                    )
                 }
             }
         }
@@ -846,7 +789,32 @@ private fun EntryFormScreen(
 ) {
     val screenTitleRes = when {
         draft.editing -> R.string.ledger_edit
-        else -> R.string.ledger_add
+        draft.category == EntryCategory.Fuel -> R.string.home_log_fuel
+        else -> R.string.home_log_expense
+    }
+    var confirmExit by rememberSaveable(draft.id) { mutableStateOf(false) }
+    val requestExit = {
+        if (!state.saving) {
+            if (state.draftChanged) confirmExit = true else ledger.back()
+        }
+    }
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    BackHandler(enabled = !imeVisible, onBack = requestExit)
+    if (confirmExit) {
+        AlertDialog(
+            onDismissRequest = { confirmExit = false },
+            title = { Text(stringResource(R.string.ledger_discard_draft_title)) },
+            confirmButton = {
+                TextButton(onClick = ledger::back, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.ledger_discard_draft_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmExit = false }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.ledger_keep_draft))
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -857,7 +825,7 @@ private fun EntryFormScreen(
                 subtitle = vehicle.displayLabel,
                 actions = {
                     HeaderCloseButton(
-                        onClose = ledger::back,
+                        onClose = requestExit,
                         modifier = Modifier.testTag("ledgerCloseEntry"),
                         enabled = !state.saving,
                         label = stringResource(if (draft.editing) R.string.app_close else R.string.ledger_close_new_entry),
@@ -882,8 +850,8 @@ private fun EntryFormScreen(
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 16.dp, vertical = if (imeVisible) 8.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
 
 
@@ -930,61 +898,89 @@ private fun EntryForm(
         )
     }
 
-    if (draft.category != EntryCategory.Fuel) {
-        CategoryField(draft.category, enabled, ledger::changeCategory)
+    val isFuel = draft.category == EntryCategory.Fuel
+    val amountLabel = when {
+        isFuel -> R.string.ledger_fuel_total_paid
+        allowsUnpricedEntry(draft.category.key) -> R.string.ledger_optional_amount
+        else -> R.string.ledger_amount
     }
-
-    // Amount & Volume Inputs
-    if (draft.category == EntryCategory.Fuel) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val stackInputs = fontScale >= 1.35f || maxWidth < 360.dp
-            if (stackInputs) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    EntryTextField(
-                        draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
-                        keyboard = KeyboardType.Decimal,
-                        imeAction = ImeAction.Next,
-                        visualTransformation = amountVisualTransformation,
-                    )
-                    EntryTextField(
-                        draft.volume, EntryField.Volume, R.string.ledger_volume, state, ledger,
-                        keyboard = KeyboardType.Decimal,
-                        imeAction = ImeAction.Next,
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Box(Modifier.weight(1f)) {
-                        EntryTextField(
-                            draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
-                            keyboard = KeyboardType.Decimal,
-                            imeAction = ImeAction.Next,
-                            visualTransformation = amountVisualTransformation,
-                        )
-                    }
-                    Box(Modifier.weight(1f)) {
-                        EntryTextField(
-                            draft.volume, EntryField.Volume, R.string.ledger_volume, state, ledger,
-                            keyboard = KeyboardType.Decimal,
-                            imeAction = ImeAction.Next,
-                        )
-                    }
-                }
-            }
-        }
-    } else {
+    val amountField: @Composable () -> Unit = {
         EntryTextField(
-            draft.amount, EntryField.Amount, R.string.ledger_amount, state, ledger,
+            draft.amount, EntryField.Amount, amountLabel, state, ledger,
             keyboard = KeyboardType.Decimal,
             imeAction = ImeAction.Next,
             visualTransformation = amountVisualTransformation,
         )
+    }
+    if (isFuel) {
+        val volumeField: @Composable () -> Unit = {
+            EntryTextField(
+                draft.volume, EntryField.Volume, R.string.ledger_volume, state, ledger,
+                keyboard = KeyboardType.Decimal,
+                imeAction = ImeAction.Next,
+            )
+        }
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            if (fontScale >= 1.35f || maxWidth < 360.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    amountField()
+                    volumeField()
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.weight(1f)) { amountField() }
+                    Box(Modifier.weight(1f)) { volumeField() }
+                }
+            }
+        }
+
+        // Full Tank toggle
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = VehicleLogShapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.ledger_full_tank),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.ledger_full_tank_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = draft.isFullTank,
+                    onCheckedChange = ledger::changeFullTank,
+                    modifier = Modifier.testTag("ledgerFullTankSwitch"),
+                    enabled = enabled,
+                )
+            }
+        }
+
+        // Station Name for Fuel
+        EntryTextField(
+            draft.stationName, EntryField.StationName, R.string.ledger_station_name, state, ledger,
+            keyboard = KeyboardType.Text,
+            hint = R.string.ledger_station_name_hint,
+            imeAction = ImeAction.Next,
+        )
+    } else {
+        amountField()
+    }
+    if (draft.editing || !isFuel) {
+        CategoryField(draft.category, enabled, allowFuel = draft.editing, onSelect = ledger::changeCategory)
     }
 
     // Gregorian Date warning if present
@@ -996,27 +992,55 @@ private fun EntryForm(
         )
     }
 
-    // Date Field with Calendar Trigger & Quick Today/Yesterday Chips
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        EntryTextField(
-            draft.date, EntryField.Date, R.string.ledger_date, state, ledger,
-            numeric = true,
-            hint = if (draft.originalGregorianDate == null) R.string.ledger_date_example else R.string.ledger_replace_date,
-            imeAction = ImeAction.Next,
-            trailingIcon = {
-                IconButton(
-                    onClick = { showDatePicker = true },
-                    enabled = enabled,
-                    modifier = Modifier.size(48.dp).testTag("ledgerDatePickerOpen"),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_calendar),
-                        contentDescription = stringResource(R.string.date_picker_open),
-                        tint = MaterialTheme.colorScheme.primary,
+    val dateError = state.fieldErrors[EntryField.Date]
+    val dateSection = remember { BringIntoViewRequester() }
+    val firstErrorIsDate = state.fieldErrors.keys.minByOrNull { it.ordinal } == EntryField.Date
+    LaunchedEffect(firstErrorIsDate) {
+        if (firstErrorIsDate) dateSection.bringIntoView()
+    }
+    Column(
+        modifier = Modifier.bringIntoViewRequester(dateSection),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedCard(
+            onClick = {
+                focusManager.clearFocus()
+                showDatePicker = true
+            },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("ledgerDatePickerOpen"),
+            shape = VehicleLogShapes.medium,
+            border = BorderStroke(
+                1.dp,
+                if (dateError == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.error,
+            ),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.ledger_date),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        if (draft.date.isBlank()) stringResource(R.string.date_picker_open)
+                        else "\u2066${draft.date.normalizeInputDigits().withPersianDigits()}\u2069",
+                        style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-            },
-        )
+                Icon(
+                    painterResource(R.drawable.ic_calendar),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        if (dateError != null) StatusText(dateError, error = true)
         if (todayJalali != null || yesterdayJalali != null) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -1045,10 +1069,6 @@ private fun EntryForm(
                 }
             }
         }
-    }
-
-    if (draft.category == EntryCategory.Fuel) {
-        CategoryField(draft.category, enabled, ledger::changeCategory)
     }
 
     // Accordion Disclosure: Mileage & Notes (Optional)
@@ -1110,6 +1130,15 @@ private fun EntryForm(
                         }
                     }
 
+                    if (!isFuel) {
+                        EntryTextField(
+                            draft.stationName, EntryField.StationName, R.string.ledger_station_name, state, ledger,
+                            keyboard = KeyboardType.Text,
+                            hint = R.string.ledger_station_name_hint,
+                            imeAction = ImeAction.Next,
+                        )
+                    }
+
                     EntryTextField(
                         draft.notes, EntryField.Notes, R.string.ledger_notes, state, ledger,
                         singleLine = false,
@@ -1159,7 +1188,12 @@ private fun EntryForm(
 }
 
 @Composable
-private fun CategoryField(category: EntryCategory, enabled: Boolean, onSelect: (EntryCategory) -> Unit) {
+private fun CategoryField(
+    category: EntryCategory,
+    enabled: Boolean,
+    allowFuel: Boolean,
+    onSelect: (EntryCategory) -> Unit,
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.ledger_category), style = MaterialTheme.typography.labelMedium)
@@ -1182,7 +1216,7 @@ private fun CategoryField(category: EntryCategory, enabled: Boolean, onSelect: (
                 }
             }
             DropdownMenu(expanded && enabled, onDismissRequest = { expanded = false }) {
-                for (option in EntryCategory.entries) {
+                for (option in EntryCategory.entries.filter { allowFuel || it != EntryCategory.Fuel }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(option.label)) },
                         onClick = {
@@ -1205,21 +1239,28 @@ private fun EntryTextField(
     state: LedgerUiState,
     ledger: LedgerViewModel,
     keyboard: KeyboardType = KeyboardType.Text,
-    numeric: Boolean = keyboard != KeyboardType.Text,
     singleLine: Boolean = true,
     enabled: Boolean = !state.saving,
     @StringRes hint: Int? = null,
     imeAction: ImeAction = ImeAction.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    trailingIcon: (@Composable () -> Unit)? = null,
+    visualTransformation: VisualTransformation = if (keyboard == KeyboardType.Text) {
+        VisualTransformation.None
+    } else {
+        PersianNumericTransformation
+    },
 ) {
     val error = state.fieldErrors[field]
     val supportingText = error ?: hint
+    val bringIntoView = remember { BringIntoViewRequester() }
+    val firstInvalidField = state.fieldErrors.keys.minByOrNull { it.ordinal }
+    LaunchedEffect(firstInvalidField == field) {
+        if (firstInvalidField == field) bringIntoView.bringIntoView()
+    }
     OutlinedTextField(
         value = value,
         onValueChange = { ledger.changeField(field, it) },
-        modifier = Modifier.fillMaxWidth().testTag("ledger${field.name}"),
+        modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoView).testTag("ledger${field.name}"),
         label = { Text(stringResource(label)) },
         enabled = enabled,
         isError = error != null,
@@ -1228,12 +1269,11 @@ private fun EntryTextField(
         singleLine = singleLine,
         minLines = if (singleLine) 1 else 2,
         textStyle = MaterialTheme.typography.bodyLarge.copy(
-            textDirection = if (numeric) TextDirection.Ltr else TextDirection.ContentOrRtl,
+            textDirection = if (keyboard == KeyboardType.Text) TextDirection.ContentOrRtl else TextDirection.Ltr,
         ),
         keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = imeAction),
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
-        trailingIcon = trailingIcon,
     )
 }
 

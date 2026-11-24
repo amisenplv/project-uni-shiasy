@@ -30,6 +30,8 @@ internal data class LedgerUiState(
     val listFailed: Boolean = false,
     val openingEntry: Boolean = false,
     val draft: EntryDraft? = null,
+    val returnToHome: Boolean = false,
+    val draftChanged: Boolean = false,
     val fieldErrors: Map<EntryField, Int> = emptyMap(),
     val saving: Boolean = false,
     val result: EntrySaveResult? = null,
@@ -72,14 +74,21 @@ internal class LedgerViewModel(
     }
 
     fun openQuickAdd(vehicle: VehicleEntity, initialCategory: EntryCategory = EntryCategory.Fuel) {
-        if (state.value.vehicle != null) return
+        val current = state.value
+        if (current.vehicle != null && current.vehicle.id != vehicle.id ||
+            current.draft != null || current.dashboard != null || current.openingEntry ||
+            current.inspectingEntryId != null || current.entryPendingDeletion != null || current.deleting
+        ) return
         setState(
-            LedgerUiState(
+            current.copy(
                 vehicle = vehicle,
                 draft = EntryDraft.create(vehicle.id, clock).copy(category = initialCategory),
-            )
+                returnToHome = current.vehicle == null,
+                result = null,
+                lastActionWasDelete = false,
+            ),
         )
-        observe(vehicle.id)
+        if (current.vehicle == null) observe(vehicle.id)
     }
 
     fun openDashboardForVehicle(vehicle: VehicleEntity, month: JalaliMonth? = JalaliDates.monthOf(todayDate())) {
@@ -88,6 +97,7 @@ internal class LedgerViewModel(
             LedgerUiState(
                 vehicle = vehicle,
                 dashboard = MonthlyDashboardState(currentMonth = month),
+                returnToHome = true,
             )
         )
         observe(vehicle.id)
@@ -255,7 +265,12 @@ internal class LedgerViewModel(
         val current = state.value
         if (current.dashboard != null) {
             dashboardObservation?.cancel()
-            setState(current.copy(dashboard = null))
+            if (current.returnToHome) {
+                observation?.cancel()
+                setState(LedgerUiState())
+            } else {
+                setState(current.copy(dashboard = null))
+            }
             return
         }
         if (current.saving || current.openingEntry || current.deleting) return
@@ -267,8 +282,16 @@ internal class LedgerViewModel(
             dismissEntryDetail()
             return
         }
-        if (current.draft != null) {
-            setState(current.copy(draft = null, result = null, fieldErrors = emptyMap(), lastActionWasDelete = false))
+        if (current.draft != null && !current.returnToHome) {
+            setState(
+                current.copy(
+                    draft = null,
+                    draftChanged = false,
+                    result = null,
+                    fieldErrors = emptyMap(),
+                    lastActionWasDelete = false,
+                ),
+            )
         } else {
             observation?.cancel()
             setState(LedgerUiState())
@@ -286,7 +309,12 @@ internal class LedgerViewModel(
             EntryField.Volume -> it.copy(volume = value)
             EntryField.Mileage -> it.copy(mileage = value)
             EntryField.Notes -> it.copy(notes = value)
+            EntryField.StationName -> it.copy(stationName = value)
         }
+    }
+
+    fun changeFullTank(isFullTank: Boolean) = change(emptySet()) {
+        it.copy(isFullTank = isFullTank)
     }
 
     fun toggleMileageRemoval() = change(setOf(EntryField.Mileage)) {
@@ -299,10 +327,12 @@ internal class LedgerViewModel(
         if (current.saving) return
         val mileageChanged = EntryField.Mileage in fields || EntryField.Date in fields
         val clearsConflict = mileageChanged && current.result == EntrySaveResult.MileageConflict
+        val changedDraft = transform(draft)
         val remainingErrors = current.fieldErrors - fields
         setState(
             current.copy(
-                draft = transform(draft),
+                draft = changedDraft,
+                draftChanged = current.draftChanged || draft != changedDraft,
                 fieldErrors = if (clearsConflict) remainingErrors - EntryField.Mileage else remainingErrors,
                 result = current.result.takeIf { it == EntrySaveResult.MileageConflict && !mileageChanged },
             )
@@ -313,7 +343,7 @@ internal class LedgerViewModel(
         val current = state.value
         val draft = current.draft ?: return
         if (current.saving || current.result != EntrySaveResult.MileageConflict) return
-        setState(current.copy(draft = draft.copy(omitMileage = true)))
+        setState(current.copy(draft = draft.copy(omitMileage = true), draftChanged = true))
         save()
     }
 
@@ -334,6 +364,8 @@ internal class LedgerViewModel(
                     updateState {
                         it.copy(
                             draft = it.draft.takeUnless { result == EntrySaveResult.Saved },
+                            returnToHome = it.returnToHome && result != EntrySaveResult.Saved,
+                            draftChanged = it.draftChanged && result != EntrySaveResult.Saved,
                             saving = false,
                             result = result,
                             fieldErrors = result.fieldErrors(),
@@ -371,6 +403,8 @@ internal class LedgerViewModel(
 
         val draft = state.draft
         handle[KEY_DRAFT_PRESENT] = draft != null
+        handle[KEY_RETURN_TO_HOME] = state.returnToHome
+        handle[KEY_DRAFT_CHANGED] = state.draftChanged
         handle[KEY_DRAFT_VEHICLE_ID] = draft?.vehicleId
         handle[KEY_DRAFT_ID] = draft?.id?.toString()
         handle[KEY_DRAFT_CREATED_AT] = draft?.createdAt
@@ -384,6 +418,8 @@ internal class LedgerViewModel(
         handle[KEY_DRAFT_ORIGINAL_MILEAGE] = draft?.originalMileage
         handle[KEY_DRAFT_OMIT_MILEAGE] = draft?.omitMileage
         handle[KEY_DRAFT_NOTES] = draft?.notes
+        handle[KEY_DRAFT_STATION_NAME] = draft?.stationName
+        handle[KEY_DRAFT_IS_FULL_TANK] = draft?.isFullTank
 
         val dashboard = state.dashboard
         handle[KEY_DASHBOARD_OPEN] = dashboard != null
@@ -405,6 +441,8 @@ internal class LedgerViewModel(
         private const val KEY_VEHICLE_YEAR = "ledger_vm_vehicle_year"
         private const val KEY_VEHICLE_CALENDAR = "ledger_vm_vehicle_calendar"
 
+        private const val KEY_DRAFT_CHANGED = "ledger_vm_draft_changed"
+        private const val KEY_RETURN_TO_HOME = "ledger_vm_return_to_home"
         private const val KEY_DRAFT_PRESENT = "ledger_vm_draft_present"
         private const val KEY_DRAFT_VEHICLE_ID = "ledger_vm_draft_vehicle_id"
         private const val KEY_DRAFT_ID = "ledger_vm_draft_id"
@@ -419,6 +457,8 @@ internal class LedgerViewModel(
         private const val KEY_DRAFT_ORIGINAL_MILEAGE = "ledger_vm_draft_original_mileage"
         private const val KEY_DRAFT_OMIT_MILEAGE = "ledger_vm_draft_omit_mileage"
         private const val KEY_DRAFT_NOTES = "ledger_vm_draft_notes"
+        private const val KEY_DRAFT_STATION_NAME = "ledger_vm_draft_station_name"
+        private const val KEY_DRAFT_IS_FULL_TANK = "ledger_vm_draft_is_full_tank"
 
         private const val KEY_DASHBOARD_OPEN = "ledger_vm_dashboard_open"
         private const val KEY_DASHBOARD_CUR_YEAR = "ledger_vm_dashboard_cur_year"
@@ -470,6 +510,8 @@ internal class LedgerViewModel(
                         originalMileage = handle.get<Long>(KEY_DRAFT_ORIGINAL_MILEAGE),
                         omitMileage = handle.get<Boolean>(KEY_DRAFT_OMIT_MILEAGE) == true,
                         notes = handle.get<String>(KEY_DRAFT_NOTES).orEmpty(),
+                        stationName = handle.get<String>(KEY_DRAFT_STATION_NAME).orEmpty(),
+                        isFullTank = handle.get<Boolean>(KEY_DRAFT_IS_FULL_TANK) == true,
                     )
                 } else null
             } else null
@@ -487,6 +529,8 @@ internal class LedgerViewModel(
             return LedgerUiState(
                 vehicle = vehicle,
                 draft = draft,
+                returnToHome = (draft != null || dashboard != null) && handle.get<Boolean>(KEY_RETURN_TO_HOME) == true,
+                draftChanged = draft != null && handle.get<Boolean>(KEY_DRAFT_CHANGED) == true,
                 dashboard = dashboard,
                 inspectingEntryId = handle.get<String>(KEY_INSPECTING_ENTRY_ID),
                 entryPendingDeletion = handle.get<String>(KEY_PENDING_DELETION_ID),

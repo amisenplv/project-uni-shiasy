@@ -149,7 +149,7 @@ internal fun MonthlyDashboardScreen(
                                     Text(
                                         tomanLabel(monthReport?.totals?.totalRials ?: BigInteger.ZERO),
                                         Modifier.testTag("dashboardTotal"),
-                                        style = MaterialTheme.typography.displayMedium,
+                                        style = MaterialTheme.typography.displayLarge,
                                     )
                                     HorizontalDivider()
                                     Text(

@@ -26,7 +26,7 @@ internal enum class EntryCategory(val key: String, @field:StringRes val label: I
     Other("other", R.string.ledger_other),
 }
 
-internal enum class EntryField { Amount, Date, Volume, Mileage, Notes }
+internal enum class EntryField { Amount, Volume, Date, Mileage, Notes, StationName }
 
 internal data class EntryDraft(
     val vehicleId: String,
@@ -42,6 +42,8 @@ internal data class EntryDraft(
     val originalMileage: Long? = null,
     val omitMileage: Boolean = false,
     val notes: String = "",
+    val stationName: String = "",
+    val isFullTank: Boolean = false,
 ) {
     companion object {
         fun create(vehicleId: String, clock: Clock): EntryDraft {
@@ -74,6 +76,8 @@ internal data class EntryDraft(
                 mileage = saved.reading?.kilometers?.toString()?.withPersianDigits().orEmpty(),
                 originalMileage = saved.reading?.kilometers,
                 notes = entry.notes.orEmpty(),
+                stationName = entry.stationName.orEmpty(),
+                isFullTank = entry.isFullTank,
             )
         }
     }
@@ -112,7 +116,20 @@ internal data class EntryDraft(
             kilometers == null || kilometers == originalMileage -> LinkedReadingEdit.Keep
             else -> LinkedReadingEdit.Set(kilometers)
         }
-        return DraftValidation.Valid(EntryInput(vehicleId, category.key, gregorian, rials, liters, notes), kilometers, edit)
+        return DraftValidation.Valid(
+            EntryInput(
+                vehicleId = vehicleId,
+                category = category.key,
+                occurredOn = gregorian,
+                amountRials = rials,
+                fuelVolumeLiters = liters,
+                notes = notes,
+                stationName = stationName.trim().takeIf { it.isNotBlank() },
+                isFullTank = isFullTank && category == EntryCategory.Fuel,
+            ),
+            kilometers,
+            edit,
+        )
     }
 }
 

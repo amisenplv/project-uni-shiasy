@@ -46,6 +46,7 @@ import org.unishiasy.vehiclelog.data.local.HistoryEntry
 import org.unishiasy.vehiclelog.domain.JalaliDates
 import org.unishiasy.vehiclelog.domain.Money
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.StatusPill
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.SheetShape
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
@@ -120,6 +121,14 @@ internal fun EntryDetailSheet(
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
+                    if (entry.isFullTank) {
+                        StatusPill(
+                            text = stringResource(R.string.ledger_full_tank),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.testTag("entryDetailFullTank"),
+                        )
+                    }
                 }
                 IconButton(
                     onClick = onDismiss,
@@ -158,6 +167,14 @@ internal fun EntryDetailSheet(
                 DetailFieldRow(
                     label = stringResource(R.string.ledger_volume),
                     value = stringResource(R.string.ledger_liters, "\u2066$liters\u2069"),
+                )
+            }
+
+            entry.stationName?.takeIf { it.isNotBlank() }?.let { station ->
+                DetailFieldRow(
+                    label = stringResource(R.string.ledger_station_name),
+                    value = station,
+                    valueModifier = Modifier.testTag("entryDetailStationName"),
                 )
             }
 
@@ -242,9 +259,15 @@ internal fun EntryDetailSheet(
 }
 
 @Composable
-private fun DetailFieldRow(label: String, value: String, emphasize: Boolean = false) {
+private fun DetailFieldRow(
+    label: String,
+    value: String,
+    emphasize: Boolean = false,
+    modifier: Modifier = Modifier,
+    valueModifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -255,6 +278,7 @@ private fun DetailFieldRow(label: String, value: String, emphasize: Boolean = fa
         )
         Text(
             text = value,
+            modifier = valueModifier,
             style = if (emphasize) {
                 MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             } else {
