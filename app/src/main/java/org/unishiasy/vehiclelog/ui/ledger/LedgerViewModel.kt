@@ -40,6 +40,8 @@ internal data class LedgerUiState(
     val lastActionWasDelete: Boolean = false,
     val dashboard: MonthlyDashboardState? = null,
     val inspectingEntryId: String? = null,
+    val toolsOpen: Boolean = false,
+    val tripCalculatorOpen: Boolean = false,
 ) {
     val recent: List<HistoryEntry>? get() = entries
 }
@@ -93,15 +95,38 @@ internal class LedgerViewModel(
 
     fun openDashboardForVehicle(vehicle: VehicleEntity, month: JalaliMonth? = JalaliDates.monthOf(todayDate())) {
         if (state.value.vehicle != null) return
+        val currentToolsOpen = state.value.toolsOpen
         setState(
             LedgerUiState(
                 vehicle = vehicle,
                 dashboard = MonthlyDashboardState(currentMonth = month),
                 returnToHome = true,
+                toolsOpen = currentToolsOpen,
             )
         )
         observe(vehicle.id)
         observeDashboard(vehicle.id)
+    }
+
+    fun openTools() {
+        val current = state.value
+        if (current.vehicle != null) {
+            observation?.cancel()
+            dashboardObservation?.cancel()
+        }
+        setState(LedgerUiState(toolsOpen = true))
+    }
+
+    fun openTripCalculator() {
+        updateState { it.copy(toolsOpen = true, tripCalculatorOpen = true) }
+    }
+
+    fun closeTripCalculator() {
+        updateState { it.copy(tripCalculatorOpen = false) }
+    }
+
+    fun closeTools() {
+        updateState { it.copy(toolsOpen = false, tripCalculatorOpen = false) }
     }
 
     fun openEntryFromHome(vehicle: VehicleEntity, entryId: String) {
@@ -263,14 +288,22 @@ internal class LedgerViewModel(
 
     fun back() {
         val current = state.value
+        if (current.tripCalculatorOpen) {
+            closeTripCalculator()
+            return
+        }
         if (current.dashboard != null) {
             dashboardObservation?.cancel()
             if (current.returnToHome) {
                 observation?.cancel()
-                setState(LedgerUiState())
+                setState(if (current.toolsOpen) LedgerUiState(toolsOpen = true) else LedgerUiState())
             } else {
                 setState(current.copy(dashboard = null))
             }
+            return
+        }
+        if (current.toolsOpen) {
+            closeTools()
             return
         }
         if (current.saving || current.openingEntry || current.deleting) return
@@ -430,9 +463,13 @@ internal class LedgerViewModel(
 
         handle[KEY_INSPECTING_ENTRY_ID] = state.inspectingEntryId
         handle[KEY_PENDING_DELETION_ID] = state.entryPendingDeletion
+        handle[KEY_TOOLS_OPEN] = state.toolsOpen
+        handle[KEY_TRIP_CALCULATOR_OPEN] = state.tripCalculatorOpen
     }
 
     companion object {
+        private const val KEY_TOOLS_OPEN = "ledger_vm_tools_open"
+        private const val KEY_TRIP_CALCULATOR_OPEN = "ledger_vm_trip_calculator_open"
         private const val KEY_VEHICLE_PRESENT = "ledger_vm_vehicle_present"
         private const val KEY_VEHICLE_ID = "ledger_vm_vehicle_id"
         private const val KEY_VEHICLE_KIND = "ledger_vm_vehicle_kind"
@@ -485,7 +522,9 @@ internal class LedgerViewModel(
                     )
                 } else null
             } else null
-            if (vehicle == null) return LedgerUiState()
+            val toolsOpen = handle.get<Boolean>(KEY_TOOLS_OPEN) == true
+            val tripCalculatorOpen = handle.get<Boolean>(KEY_TRIP_CALCULATOR_OPEN) == true
+            if (vehicle == null) return LedgerUiState(toolsOpen = toolsOpen, tripCalculatorOpen = tripCalculatorOpen)
 
             val draft = if (handle.get<Boolean>(KEY_DRAFT_PRESENT) == true) {
                 val draftVehicleId = handle.get<String>(KEY_DRAFT_VEHICLE_ID)
@@ -534,6 +573,8 @@ internal class LedgerViewModel(
                 dashboard = dashboard,
                 inspectingEntryId = handle.get<String>(KEY_INSPECTING_ENTRY_ID),
                 entryPendingDeletion = handle.get<String>(KEY_PENDING_DELETION_ID),
+                toolsOpen = toolsOpen,
+                tripCalculatorOpen = tripCalculatorOpen,
             )
         }
     }

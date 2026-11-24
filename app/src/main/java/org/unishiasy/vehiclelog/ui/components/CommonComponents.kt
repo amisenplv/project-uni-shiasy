@@ -94,32 +94,17 @@ fun AppBottomDock(
     onSelectTab: (MainTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = MaterialTheme.colorScheme
-    val navLabel = stringResource(R.string.dock_nav_label)
-    NavigationBar(
-        modifier = modifier.testTag("appBottomDock").semantics { contentDescription = navLabel },
-        containerColor = colors.surfaceContainer,
+    Box(
+        modifier = modifier
+            .testTag("appBottomDock")
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        for (tab in MainTab.entries) {
-            val (labelRes, iconRes) = when (tab) {
-                MainTab.HOME -> R.string.dock_home to R.drawable.ic_home
-                MainTab.HISTORY -> R.string.dock_history to R.drawable.ic_book
-                MainTab.REMINDERS -> R.string.dock_reminders to R.drawable.ic_bell
-                MainTab.TOOLS -> R.string.dock_tools to R.drawable.ic_tool
-            }
-            NavigationBarItem(
-                selected = activeTab == tab,
-                onClick = { onSelectTab(tab) },
-                modifier = Modifier.testTag("dockTab:${tab.name.lowercase()}"),
-                icon = { Icon(painterResource(iconRes), contentDescription = null) },
-                label = { Text(stringResource(labelRes), textAlign = TextAlign.Center) },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = colors.secondaryContainer,
-                    selectedIconColor = colors.onSecondaryContainer,
-                    selectedTextColor = colors.onSurface,
-                ),
-            )
-        }
+        FloatingBottomDock(
+            selectedTab = activeTab,
+            onTabSelected = onSelectTab,
+        )
     }
 }
 

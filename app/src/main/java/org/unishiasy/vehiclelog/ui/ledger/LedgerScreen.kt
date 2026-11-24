@@ -127,6 +127,8 @@ import org.unishiasy.vehiclelog.ui.settings.BackupSettingsViewModel
 import org.unishiasy.vehiclelog.ui.settings.CloudSettingsViewModel
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
+import org.unishiasy.vehiclelog.ui.tools.ToolsHubScreen
+import org.unishiasy.vehiclelog.ui.tools.TripCalculatorScreen
 import org.unishiasy.vehiclelog.ui.vehicle.VehicleScreen
 import org.unishiasy.vehiclelog.ui.vehicle.VehicleViewModel
 
@@ -203,6 +205,7 @@ internal fun LedgerHost(
     }
 
     val activeTab = when {
+        state.toolsOpen -> MainTab.TOOLS
         vehicle != null && state.draft == null && state.dashboard == null -> MainTab.HISTORY
         reminderVehicle != null -> MainTab.REMINDERS
         else -> MainTab.HOME
@@ -231,23 +234,28 @@ internal fun LedgerHost(
                 onSelectTab = { tab ->
                     when (tab) {
                         MainTab.HOME -> {
+                            if (state.toolsOpen) ledger.closeTools()
                             if (vehicle != null) ledger.back()
                             if (reminderVehicle != null) reminders.back()
                         }
                         MainTab.HISTORY -> {
+                            if (state.toolsOpen) ledger.closeTools()
                             if (reminderVehicle != null) reminders.back()
                             if (vehicle == null && currentVehicle != null) {
                                 ledger.openVehicle(currentVehicle)
                             }
                         }
                         MainTab.REMINDERS -> {
+                            if (state.toolsOpen) ledger.closeTools()
                             if (vehicle != null) ledger.back()
                             if (reminderVehicle == null && currentVehicle != null) {
                                 reminders?.open(currentVehicle)
                             }
                         }
                         MainTab.TOOLS -> {
-                            // Tools screen integration handled in Task 6
+                            if (vehicle != null) ledger.back()
+                            if (reminderVehicle != null) reminders.back()
+                            ledger.openTools()
                         }
                     }
                 },
@@ -308,6 +316,33 @@ internal fun LedgerHost(
     }
 
     if (showHome) {
+        if (state.tripCalculatorOpen) {
+            BackHandler(onBack = ledger::closeTripCalculator)
+            TripCalculatorScreen(
+                onBack = ledger::closeTripCalculator,
+            )
+            return
+        }
+
+        if (state.toolsOpen) {
+            BackHandler(onBack = ledger::closeTools)
+            ToolsHubScreen(
+                currentVehicleLabel = currentVehicle?.displayLabel,
+                onOpenTripCalculator = ledger::openTripCalculator,
+                onOpenVehicleManagement = vehicles::openManagement,
+                onOpenReports = {
+                    if (currentVehicle != null) {
+                        ledger.openDashboardForVehicle(currentVehicle)
+                    }
+                },
+                onOpenSettings = {
+                    backupSettings?.open()
+                },
+                bottomBar = dockComposable,
+            )
+            return
+        }
+
         val observedVehicleId = reminderVehicle?.id ?: homeState?.selectedVehicle?.id
         if (reminders != null && observedVehicleId != null) {
             val lifecycle = LocalLifecycleOwner.current.lifecycle

@@ -122,23 +122,46 @@ class AppJourneyRobolectricTest {
     }
 
     @Test
-    fun newExpenseClosesFromTheLeftOfTheMaterialTopBarWithoutSaving() {
+    fun newExpenseClosesFromTheLeftOfTheMaterialTopBarBackToHomeWithoutSaving() {
         mountHost()
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithTag("homeAddExpense").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("entryFab").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("homeAddExpense").performScrollTo().performClick()
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:expense").performClick()
 
         val close = compose.onNodeWithContentDescription(context.getString(R.string.ledger_close_new_entry))
-        val title = compose.onNodeWithText(context.getString(R.string.ledger_add))
+        val title = compose.onNodeWithText(context.getString(R.string.home_log_expense))
         close.assertIsDisplayed()
         assertTrue(close.fetchSemanticsNode().boundsInRoot.right <= title.fetchSemanticsNode().boundsInRoot.left)
         compose.onNodeWithText("انصراف").assertDoesNotExist()
         compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
 
         close.performClick()
-        compose.waitUntil(5_000) { ledgerVm.state.value.draft == null && ledgerVm.state.value.entries?.isEmpty() == true }
+        compose.waitUntil(5_000) { ledgerVm.state.value.vehicle == null }
+        compose.onNodeWithTag("homeScreen").assertIsDisplayed()
+    }
+
+    @Test
+    fun historyFabOpensFuelAndBackProtectsTheDraft() {
+        mountHost()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("dockTab:history").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("dockTab:history").performClick()
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
+        compose.onNodeWithTag("ledgerAmount").performTextReplacement("۱۵۰۰۰۰")
+
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithText(context.getString(R.string.ledger_keep_draft)).performClick()
+        compose.onNodeWithTag("ledgerAmount").assertTextContains("۱۵۰٬۰۰۰", substring = true)
+
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithText(context.getString(R.string.ledger_discard_draft_action)).performClick()
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
+        assertEquals(vehicle.id, ledgerVm.state.value.vehicle?.id)
+        assertEquals(null, ledgerVm.state.value.draft)
     }
 
     @Test
@@ -166,11 +189,12 @@ class AppJourneyRobolectricTest {
             ledger.createStandaloneReading(UUID.randomUUID(), OdometerInput(vehicle.id, "2026-03-20", 12_000L))
             reminders.create(vehicle.id, reminderId, ReminderInput("تعویض روغن", dueKilometers = 15_000L))
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeOpenReminders").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("dockTab:reminders").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("dockTab:reminders").performClick()
         compose.waitUntil(5_000) { reminderVm.state.value.list?.mileage == 12_000L }
 
-        compose.onNodeWithTag("reminderMileageType").performScrollTo().performClick()
+        compose.onNodeWithTag("remindersScreen").performScrollToNode(hasTestTag("reminderMileageType"))
+        compose.onNodeWithTag("reminderMileageType").performClick()
         compose.waitForIdle()
         compose.onNodeWithText(context.getString(R.string.reminder_missing_mileage)).assertDoesNotExist()
         compose.onNodeWithTag("remindersScreen").performScrollToNode(hasText("آخرین کارکرد ثبت‌شده", substring = true))
@@ -187,10 +211,11 @@ class AppJourneyRobolectricTest {
         compose.onNodeWithTag("reminderCancel:$reminderId").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("reminderConfirmCancel").performClick()
-        compose.waitUntil(5_000) {
-            compose.onAllNodesWithText(context.getString(R.string.reminder_canceled)).fetchSemanticsNodes().isNotEmpty()
-        }
-        assertTrue(reminderVm.state.value.list?.rows?.single()?.state == "canceled")
+        compose.waitUntil(5_000) { reminderVm.state.value.list?.rows?.singleOrNull()?.state == "canceled" }
+        compose.onNodeWithTag("remindersScreen").performScrollToNode(hasTestTag("reminder:$reminderId"))
+        compose.onNodeWithText(context.getString(R.string.reminder_status_canceled)).assertIsDisplayed()
+        compose.onNodeWithTag("remindersScreen").performScrollToNode(hasText(context.getString(R.string.reminder_canceled)))
+        compose.onNodeWithText(context.getString(R.string.reminder_canceled)).assertIsDisplayed()
     }
 
     @Test
@@ -264,16 +289,18 @@ class AppJourneyRobolectricTest {
             }
         }
 
-        awaitTag("homeQuickAdd")
-        compose.onNodeWithTag("homeQuickAdd").performScrollTo().performClick()
+        awaitTag("entryFab")
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
         awaitTag("ledgerAmount")
         compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۱۵۰٬۰۰۰")
         compose.onNodeWithTag("ledgerVolume").performScrollTo().performTextReplacement("۳۰")
         saveEntry(1)
         compose.activity.runOnUiThread { ledgerVm.back() }
 
-        awaitTag("homeAddExpense")
-        compose.onNodeWithTag("homeAddExpense").performScrollTo().performClick()
+        awaitTag("entryFab")
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:expense").performClick()
         awaitTag("ledgerCategory")
         compose.onNodeWithTag("ledgerCategory").performScrollTo().performClick()
         compose.onNodeWithTag("ledgerCategory:oil_change").performClick()
@@ -295,7 +322,7 @@ class AppJourneyRobolectricTest {
         compose.onNodeWithTag("ledgerHistoryList").performScrollToNode(hasTestTag(oilTag))
         compose.onNodeWithTag(oilTag).assertIsDisplayed()
             .assertTextContains(checkNotNull(JalaliDates.formatGregorian(oil.occurredOn)))
-            .assertTextContains("۵۶۰۰۰", substring = true)
+            .assertTextContains("۵۶٬۰۰۰", substring = true)
 
         val total = "۱٬۰۰۰٬۰۰۰ تومان"
         compose.activity.runOnUiThread { ledgerVm.back() }
@@ -315,10 +342,7 @@ class AppJourneyRobolectricTest {
             compose.onNodeWithTag(tag).assertTextContains(subtotal)
         }
 
-        compose.activity.runOnUiThread {
-            ledgerVm.back()
-            ledgerVm.back()
-        }
+        compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
         awaitTag("homeDue:$dueId")
         awaitTag("homeOpenVehicleSwitcher")
         compose.onNodeWithTag("homeOpenVehicleSwitcher").performScrollTo().performClick()
@@ -391,14 +415,14 @@ class AppJourneyRobolectricTest {
         }
 
         fun openReminders() {
-            awaitTag("homeOpenReminders")
-            compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+            awaitTag("dockTab:reminders")
+            compose.onNodeWithTag("dockTab:reminders").performClick()
             awaitTag("remindersScreen")
         }
 
         fun openCreateForm(dueCount: Int) {
             awaitState("$dueCount due reminders") { reminderVm.state.value.list?.due?.size == dueCount }
-            compose.onNodeWithTag("dockPrimaryAction").performClick()
+            compose.onNodeWithTag("reminderFab").performClick()
             awaitTag("reminderTitle")
             compose.onNodeWithTag("reminderTitle").assertIsDisplayed().assertIsFocused()
         }
@@ -439,8 +463,9 @@ class AppJourneyRobolectricTest {
             }
             mount("run1", database)
 
-            awaitTag("homeQuickAdd")
-            compose.onNodeWithTag("homeQuickAdd").performScrollTo().performClick()
+            awaitTag("entryFab")
+            compose.onNodeWithTag("entryFab").performClick()
+            compose.onNodeWithTag("selectorOption:fuel").performClick()
             awaitTag("ledgerAmount")
             compose.onNodeWithTag("ledgerAmount").performScrollTo().performTextReplacement("۱۵۰٬۰۰۰")
             compose.onNodeWithTag("ledgerVolume").performScrollTo().performTextReplacement("۳۰")
@@ -478,7 +503,7 @@ class AppJourneyRobolectricTest {
             compose.onNodeWithTag("reminderDueSection").assertIsDisplayed()
             scrollToReminderTag(dueTag)
             compose.onNodeWithText(dueTitle).assertIsDisplayed()
-            compose.onNodeWithText("سررسید شده").assertIsDisplayed()
+            compose.onNodeWithText(context.getString(R.string.reminder_status_due)).assertIsDisplayed()
             openCreateForm(dueCount = 1)
 
             // A second due fixture exercises the shortcut with a longer due section.
@@ -533,5 +558,30 @@ class AppJourneyRobolectricTest {
             File(dbFile.absolutePath + "-wal").delete()
             File(dbFile.absolutePath + "-shm").delete()
         }
+    }
+
+    @Test
+    fun navigateToToolsTabOpenTripCalculatorAndReturn() {
+        mountHost()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("dockTab:tools").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("dockTab:tools").performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("toolsHubScreen").assertIsDisplayed()
+        compose.onNodeWithTag("toolsCard:tripCalculator").performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tripCalculatorScreen").assertIsDisplayed()
+        compose.onNodeWithTag("tripBackButton").performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("toolsHubScreen").assertIsDisplayed()
+        compose.onNodeWithTag("tripCalculatorScreen").assertDoesNotExist()
+
+        compose.onNodeWithTag("dockTab:home").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("homeScreen").assertIsDisplayed()
     }
 }

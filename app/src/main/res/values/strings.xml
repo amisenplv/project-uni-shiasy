@@ -309,4 +309,16 @@
     <string name="home_quick_overview">آمار کلی</string>
     <string name="home_quick_monthly">گزارش ماهانه</string>
     <string name="home_monthly_expense">هزینه این ماه</string>
+
+    <!-- Tools Hub -->
+    <string name="tools_title">ابزارها</string>
+    <string name="tools_hub_subtitle">ابزارها و محاسبات کاربردی خودرو</string>
+    <string name="tools_trip_calculator_title">محاسبه‌گر هزینه سفر</string>
+    <string name="tools_trip_calculator_desc">محاسبه سوخت و هزینه تقریبی رفت‌وآمد</string>
+    <string name="tools_vehicle_management_title">مدیریت خودرو</string>
+    <string name="tools_vehicle_management_desc">مشاهده، افزودن یا تغییر خودروی فعال</string>
+    <string name="tools_reports_dashboard_title">گزارش‌ها و نمودارها</string>
+    <string name="tools_reports_dashboard_desc">گزارش ماهانه و تحلیل تفکیکی هزینه‌ها</string>
+    <string name="tools_settings_backup_title">تنظیمات و پشتیبان‌گیری</string>
+    <string name="tools_settings_backup_desc">پشتیبان‌گیری دستی، تم و حریم خصوصی</string>
 </resources>
