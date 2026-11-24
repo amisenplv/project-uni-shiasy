@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -167,9 +170,9 @@ class ReminderEditAndRecurringRobolectricTest {
 
         compose.waitUntil(5_000) {
             ShadowLooper.idleMainLooper()
-            compose.onAllNodesWithTag("homeOpenReminders").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("dockTab:reminders").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+        compose.onNodeWithTag("dockTab:reminders").performClick()
         compose.waitUntil(5_000) {
             ShadowLooper.idleMainLooper()
             reminderVm.state.value.list?.rows?.isNotEmpty() == true
@@ -186,7 +189,7 @@ class ReminderEditAndRecurringRobolectricTest {
 
         compose.waitUntil(5_000) {
             ShadowLooper.idleMainLooper()
-            compose.onAllNodesWithText(context.getString(R.string.reminder_updated)).fetchSemanticsNodes().isNotEmpty()
+            reminderVm.state.value.list?.rows?.singleOrNull()?.title == "تعویض روغن موتور"
         }
         compose.onNodeWithTag("remindersScreen").performScrollToNode(hasTestTag("reminder:$reminderId"))
         compose.onNodeWithText("تعویض روغن موتور").assertIsDisplayed()
@@ -207,4 +210,64 @@ class ReminderEditAndRecurringRobolectricTest {
         assertEquals(ReminderThreshold.Mileage, reminderVm.state.value.draft.threshold)
         assertEquals(17_000L, reminderVm.state.value.draft.input()?.dueKilometers)
     }
+
+    @Test
+    fun distinguishReminderFabActionFromFormSubmit() {
+        mountHost()
+
+        compose.waitUntil(5_000) {
+            ShadowLooper.idleMainLooper()
+            compose.onAllNodesWithTag("dockTab:reminders").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("dockTab:reminders").performClick()
+        compose.waitUntil(5_000) {
+            ShadowLooper.idleMainLooper()
+            reminderVm.state.value.list != null
+        }
+
+        // FAB displays «یادآور جدید»
+        compose.onNodeWithTag("reminderFab")
+            .assertIsDisplayed()
+            .assertContentDescriptionEquals("یادآور جدید")
+
+        val initialCount = runBlocking { reminderRepo.observeForVehicle(vehicle.id).first().size }
+        assertEquals(0, initialCount)
+
+        // Clicking the FAB focuses reminderTitle without creating any records
+        compose.onNodeWithTag("reminderFab").performClick()
+        compose.waitUntil(5_000) {
+            ShadowLooper.idleMainLooper()
+            try {
+                compose.onNodeWithTag("reminderTitle").assertIsFocused()
+                true
+            } catch (_: AssertionError) {
+                false
+            }
+        }
+        compose.onNodeWithTag("reminderTitle").assertIsDisplayed().assertIsFocused()
+
+        val countAfterFab = runBlocking { reminderRepo.observeForVehicle(vehicle.id).first().size }
+        assertEquals(0, countAfterFab)
+
+        // Form submit button displays «ثبت یادآور»
+        compose.onNodeWithTag("reminderSave")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertTextContains("ثبت یادآور")
+
+        // Submitting the form with a title creates exactly one reminder
+        compose.onNodeWithTag("reminderTitle").performScrollTo().performTextReplacement("سرویس دوره‌ای")
+        compose.onNodeWithTag("reminderDate").performScrollTo().performTextReplacement("۱۴۰۵/۰۲/۰۱")
+        compose.onNodeWithTag("reminderSave").performScrollTo().performClick()
+
+        compose.waitUntil(5_000) {
+            ShadowLooper.idleMainLooper()
+            reminderVm.state.value.list?.rows?.isNotEmpty() == true
+        }
+
+        val records = runBlocking { reminderRepo.observeForVehicle(vehicle.id).first() }
+        assertEquals(1, records.size)
+        assertEquals("سرویس دوره‌ای", records.single().title)
+    }
 }
+

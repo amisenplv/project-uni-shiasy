@@ -216,7 +216,7 @@
     <string name="dock_reminders">یادآورها</string>
     <string name="dock_tools">ابزارها</string>
     <string name="dock_new_entry">ثبت جدید</string>
-    <string name="dock_new_reminder">ثبت یادآور</string>
+    <string name="dock_new_reminder">یادآور جدید</string>
     <string name="dock_nav_label">بخش‌های دفتر خودرو</string>
     <string name="entry_type_fuel">سوخت</string>
     <string name="entry_type_expense">هزینه</string>

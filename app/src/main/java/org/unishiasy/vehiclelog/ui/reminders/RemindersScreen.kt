@@ -1,7 +1,7 @@
 package org.unishiasy.vehiclelog.ui.reminders
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -10,16 +10,15 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,8 +31,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +44,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +55,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalDensity
@@ -81,10 +80,14 @@ import org.unishiasy.vehiclelog.data.ReminderState
 import org.unishiasy.vehiclelog.data.local.ReminderEntity
 import org.unishiasy.vehiclelog.data.local.VehicleEntity
 import org.unishiasy.vehiclelog.domain.JalaliDates
+import org.unishiasy.vehiclelog.domain.toPersianGroupedDigits
 import org.unishiasy.vehiclelog.domain.withPersianDigits
 import org.unishiasy.vehiclelog.ui.components.DismissibleHeading
 import org.unishiasy.vehiclelog.ui.components.HeaderCloseButton
+import org.unishiasy.vehiclelog.ui.components.LedgerFabContentClearance
+import org.unishiasy.vehiclelog.ui.components.LedgerFab
 import org.unishiasy.vehiclelog.ui.components.LedgerTopBar
+import org.unishiasy.vehiclelog.ui.components.PersianNumericTransformation
 import org.unishiasy.vehiclelog.ui.components.JalaliDatePickerDialog
 import org.unishiasy.vehiclelog.ui.theme.LocalVehicleLogSemanticColors
 import org.unishiasy.vehiclelog.ui.theme.VehicleLogShapes
@@ -97,19 +100,27 @@ internal fun RemindersScreen(
     notificationOptions: @Composable () -> Unit,
     bottomBar: @Composable () -> Unit = {},
     newReminderRequestCount: Int = 0,
+    onNewReminder: () -> Unit = {},
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
+    val showReminderFab = !state.draft.editing && !state.writing &&
+        WindowInsets.ime.getBottom(LocalDensity.current) == 0
     val list = state.list.takeIf { state.observedVehicleId == vehicle.id }
     val dueReminders = list?.due.orEmpty()
     val dueIds = dueReminders.mapTo(hashSetOf()) { it.id }
-    val otherReminders = list?.rows.orEmpty().filterNot { it.id in dueIds }
-    // Header and notification options always occupy one item each.
-    val formIndex = 1 + dueReminders.size + if (dueReminders.isEmpty()) 0 else 1
+    val upcomingReminders = list?.rows.orEmpty().filter { it.state == ReminderState.Active.key && it.id !in dueIds }
+    val closedReminders = list?.rows.orEmpty().filter { it.state != ReminderState.Active.key }
+    val completedReminder = state.lastCompletedForRecurring
+    val completionKey = completedReminder?.let { "completion:${it.id}" }
+    val completionIndex = if (dueReminders.isEmpty()) 0 else dueReminders.size + 1
+    val formIndex = 1 + dueReminders.size + upcomingReminders.size +
+        (if (dueReminders.isEmpty()) 0 else 1) + (if (upcomingReminders.isEmpty()) 0 else 1) +
+        (if (completedReminder == null) 0 else 1)
     val listState = rememberLazyListState()
     val titleFocusRequester = remember { FocusRequester() }
     var pendingCancelId by rememberSaveable { mutableStateOf<String?>(null) }
     var handledCreateRequest by remember { mutableIntStateOf(newReminderRequestCount) }
-    var formScrollRequest by remember { mutableStateOf<Boolean?>(null) }
+    var formScrollRequest by remember { mutableStateOf(false) }
 
     LaunchedEffect(newReminderRequestCount) {
         if (newReminderRequestCount != handledCreateRequest) {
@@ -118,21 +129,23 @@ internal fun RemindersScreen(
         }
     }
 
-    LaunchedEffect(state.lastCompletedForRecurring?.id) {
-        if (state.lastCompletedForRecurring != null && formScrollRequest != true) {
+    LaunchedEffect(formScrollRequest, formIndex) {
+        if (formScrollRequest) {
+            listState.animateScrollToItem(formIndex)
+            titleFocusRequester.requestFocus()
             formScrollRequest = false
         }
     }
 
-    LaunchedEffect(formScrollRequest, formIndex) {
-        val requestFocus = formScrollRequest ?: return@LaunchedEffect
-        listState.animateScrollToItem(formIndex)
-        if (requestFocus) titleFocusRequester.requestFocus()
-        formScrollRequest = null
+    LaunchedEffect(completionKey, completionIndex) {
+        if (completionKey != null && listState.layoutInfo.visibleItemsInfo.none { it.key == completionKey }) {
+            listState.animateScrollToItem(completionIndex)
+        }
     }
 
-    val reminderContent: @Composable (ReminderEntity, Boolean) -> Unit = { reminder, due ->
+    val reminderContent: @Composable (ReminderEntity, Boolean, Modifier) -> Unit = { reminder, due, modifier ->
         ReminderCard(
+            modifier = modifier,
             reminder = reminder,
             due = due,
             mileageMissing = list?.mileage == null,
@@ -209,6 +222,19 @@ internal fun RemindersScreen(
             )
         },
         bottomBar = bottomBar,
+        floatingActionButtonPosition = FabPosition.End,
+        floatingActionButton = {
+            if (showReminderFab) {
+                LedgerFab(
+                    labelRes = R.string.dock_new_reminder,
+                    onClick = {
+                        onNewReminder()
+                        formScrollRequest = true
+                    },
+                    modifier = Modifier.testTag("reminderFab"),
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         LazyColumn(
@@ -218,8 +244,9 @@ internal fun RemindersScreen(
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
                 .imePadding()
+                .padding(bottom = if (showReminderFab) LedgerFabContentClearance else 0.dp)
                 .testTag("remindersScreen"),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
 
@@ -234,7 +261,39 @@ internal fun RemindersScreen(
                     )
                 }
                 items(dueReminders, key = { it.id }) { reminder ->
-                    reminderContent(reminder, true)
+                    reminderContent(
+                        reminder, true,
+                        Modifier.animateItem(fadeInSpec = tween(120), placementSpec = tween(180), fadeOutSpec = tween(100)),
+                    )
+                }
+            }
+
+            if (completedReminder != null) {
+                item(key = completionKey) {
+                    RecurringNextBanner(
+                        completedTitle = completedReminder.title,
+                        onScheduleNext = {
+                            viewModel.prepareRecurringNext(completedReminder)
+                            formScrollRequest = true
+                        },
+                        onDismiss = viewModel::dismissRecurringPrompt,
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(150), placementSpec = tween(180), fadeOutSpec = tween(100),
+                        ),
+                    )
+                }
+            }
+
+            if (upcomingReminders.isNotEmpty()) {
+                item(key = "upcoming-heading") {
+                    Text(
+                        stringResource(R.string.reminders_upcoming_section),
+                        modifier = Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+                items(upcomingReminders, key = { it.id }) { reminder ->
+                    reminderContent(reminder, false, Modifier.animateItem(placementSpec = tween(180)))
                 }
             }
 
@@ -243,27 +302,14 @@ internal fun RemindersScreen(
                 notificationOptions()
             }
 
-            // New / Edit Reminder Form + Post-Complete Recurring Prompt
             item(key = "reminder-form") {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    state.lastCompletedForRecurring?.let { completed ->
-                        RecurringNextBanner(
-                            completedTitle = completed.title,
-                            onScheduleNext = {
-                                viewModel.prepareRecurringNext(completed)
-                                formScrollRequest = true
-                            },
-                            onDismiss = viewModel::dismissRecurringPrompt,
-                        )
-                    }
-                    ReminderForm(
-                        state = state,
-                        viewModel = viewModel,
-                        currentMileage = list?.mileage,
-                        mileageKnownMissing = list != null && list.mileage == null,
-                        titleFocusRequester = titleFocusRequester,
-                    )
-                }
+                ReminderForm(
+                    state = state,
+                    viewModel = viewModel,
+                    currentMileage = list?.mileage,
+                    mileageKnownMissing = list != null && list.mileage == null,
+                    titleFocusRequester = titleFocusRequester,
+                )
             }
 
             // Reminders list status
@@ -328,8 +374,8 @@ internal fun RemindersScreen(
                         }
                     }
                 }
-                else -> items(otherReminders, key = { it.id }) { reminder ->
-                    reminderContent(reminder, false)
+                else -> items(closedReminders, key = { it.id }) { reminder ->
+                    reminderContent(reminder, false, Modifier)
                 }
             }
         }
@@ -493,6 +539,7 @@ private fun ReminderForm(
                 modifier = Modifier.fillMaxWidth().testTag(if (dateBased) "reminderDate" else "reminderMileage"),
                 label = { Text(stringResource(if (dateBased) R.string.reminder_date_label else R.string.reminder_mileage_label)) },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
+                visualTransformation = PersianNumericTransformation,
                 singleLine = true,
                 shape = VehicleLogShapes.medium,
                 keyboardOptions = KeyboardOptions(
@@ -619,12 +666,14 @@ private fun RecurringNextBanner(
     completedTitle: String,
     onScheduleNext: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
     val fontScale = LocalDensity.current.fontScale
     OutlinedCard(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .testTag("reminderRecurringBanner"),
         shape = VehicleLogShapes.large,
         colors = CardDefaults.outlinedCardColors(containerColor = semanticColors.successSurface),
@@ -715,7 +764,8 @@ internal fun ReminderThresholdText(reminder: ReminderEntity) {
     val label = if (date != null) {
         stringResource(R.string.reminder_date_summary, JalaliDates.formatGregorian(date).orEmpty())
     } else {
-        stringResource(R.string.reminder_mileage_summary, "\u2066${reminder.dueKilometers.toString().withPersianDigits()}\u2069")
+        val kilometers = reminder.dueKilometers ?: return
+        stringResource(R.string.reminder_mileage_summary, "\u2066${kilometers.toPersianGroupedDigits()}\u2069")
     }
     Text(
         text = label,
@@ -724,6 +774,7 @@ internal fun ReminderThresholdText(reminder: ReminderEntity) {
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReminderCard(
     reminder: ReminderEntity,
@@ -734,6 +785,7 @@ private fun ReminderCard(
     viewModel: RemindersViewModel,
     onEdit: () -> Unit,
     onRequestCancel: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val semanticColors = LocalVehicleLogSemanticColors.current
     val active = reminder.state == ReminderState.Active.key
@@ -755,216 +807,126 @@ private fun ReminderCard(
     }
 
     OutlinedCard(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .testTag("reminder:${reminder.id}"),
         shape = VehicleLogShapes.large,
         colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
         border = BorderStroke(1.dp, borderColor),
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            // 3dp amber accent line on the logical start edge for due reminders
-            if (due) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(start = 0.dp)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    reminder.title,
+                    modifier = Modifier.padding(end = 12.dp),
+                    style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.ContentOrRtl),
+                    color = if (due) semanticColors.onWarning else MaterialTheme.colorScheme.onSurface,
+                )
+                Surface(
+                    shape = VehicleLogShapes.small,
+                    color = if (due) semanticColors.warningEdge.copy(alpha = 0.2f) else semanticColors.wash,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width(4.dp)
-                            .heightIn(min = 60.dp)
-                            .background(semanticColors.warningEdge)
+                    Text(
+                        stringResource(statusText),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (due) semanticColors.onWarning else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
 
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        if (due) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(semanticColors.warningEdge.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_bell),
-                                    contentDescription = null,
-                                    tint = semanticColors.onWarning,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                        }
-                        Text(
-                            text = reminder.title,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                textDirection = TextDirection.ContentOrRtl,
-                                fontWeight = FontWeight.Bold,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
+            ReminderThresholdText(reminder)
 
-                    // Status Badge
+            // Remaining distance badge for upcoming mileage reminders
+            if (active && !due && reminder.dueKilometers != null && currentMileage != null) {
+                val remainingKm = reminder.dueKilometers - currentMileage
+                if (remainingKm >= 0) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = when {
-                            due -> semanticColors.warningEdge.copy(alpha = 0.2f)
-                            active -> semanticColors.wash
-                            else -> MaterialTheme.colorScheme.surfaceVariant
-                        },
+                        color = semanticColors.wash,
                     ) {
                         Text(
-                            text = stringResource(statusText),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = when {
-                                due -> semanticColors.onWarning
-                                active -> MaterialTheme.colorScheme.primary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                            text = stringResource(R.string.reminders_remaining_km, remainingKm.toPersianGroupedDigits()),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
                 }
+            }
 
-                ReminderThresholdText(reminder)
+            if (active && mileageMissing && reminder.dueKilometers != null) {
+                Text(
+                    text = stringResource(R.string.reminder_missing_mileage),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-                // Remaining distance badge for upcoming mileage reminders
-                if (active && !due && reminder.dueKilometers != null && currentMileage != null) {
-                    val remainingKm = reminder.dueKilometers - currentMileage
-                    if (remainingKm >= 0) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = semanticColors.wash,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.reminders_remaining_km, remainingKm.toString().withPersianDigits()),
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
-                    }
-                }
+            if (state.actionId?.toString() == reminder.id) {
+                state.message?.let { ReminderFeedback(it) }
+            }
 
-                if (active && mileageMissing && reminder.dueKilometers != null) {
-                    Text(
-                        text = stringResource(R.string.reminder_missing_mileage),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                if (state.actionId?.toString() == reminder.id) {
-                    state.message?.let { ReminderFeedback(it) }
-                }
-
-                if (active) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                    val completeDescription = "${stringResource(R.string.reminder_complete_action)} ${reminder.title}"
-                    val editDescription = "${stringResource(R.string.reminder_edit_action)} ${reminder.title}"
-                    val cancelDescription = "${stringResource(R.string.reminder_cancel_action)} ${reminder.title}"
-                    val fontScale = LocalDensity.current.fontScale
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+            if (active) {
+                val completeDescription = "${stringResource(R.string.reminder_complete_action)} ${reminder.title}"
+                val editDescription = "${stringResource(R.string.reminder_edit_action)} ${reminder.title}"
+                val cancelDescription = "${stringResource(R.string.reminder_cancel_action)} ${reminder.title}"
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Button(
+                        onClick = { viewModel.finish(UUID.fromString(reminder.id), complete = true) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("reminderComplete:${reminder.id}")
+                            .semantics { contentDescription = completeDescription },
+                        shape = VehicleLogShapes.medium,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                        enabled = !state.writing,
                     ) {
-                        Button(
-                            onClick = { viewModel.finish(UUID.fromString(reminder.id), complete = true) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .testTag("reminderComplete:${reminder.id}")
-                                .semantics { contentDescription = completeDescription },
-                            shape = VehicleLogShapes.medium,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                        Text(
+                            text = stringResource(R.string.reminder_complete_action),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
                             ),
+                        )
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = onEdit,
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("reminderEdit:${reminder.id}")
+                                .semantics { contentDescription = editDescription },
+                            enabled = !state.writing,
+                        ) {
+                            Text(stringResource(R.string.reminder_edit_action))
+                        }
+                        TextButton(
+                            onClick = onRequestCancel,
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("reminderCancel:${reminder.id}")
+                                .semantics { contentDescription = cancelDescription },
                             enabled = !state.writing,
                         ) {
                             Text(
-                                text = stringResource(R.string.reminder_complete_action),
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                ),
+                                stringResource(R.string.reminder_cancel_action),
+                                color = if (state.writing) MaterialTheme.colorScheme.onSurfaceVariant else semanticColors.onDanger,
                             )
-                        }
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val stackSecondary = fontScale >= 1.35f || maxWidth < 340.dp
-                            val editBtn: @Composable (Modifier) -> Unit = { btnMod ->
-                                OutlinedButton(
-                                    onClick = onEdit,
-                                    modifier = btnMod
-                                        .heightIn(min = 48.dp)
-                                        .testTag("reminderEdit:${reminder.id}")
-                                        .semantics { contentDescription = editDescription },
-                                    shape = VehicleLogShapes.medium,
-                                    enabled = !state.writing,
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.reminder_edit_action),
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        ),
-                                    )
-                                }
-                            }
-                            val cancelBtn: @Composable (Modifier) -> Unit = { btnMod ->
-                                OutlinedButton(
-                                    onClick = onRequestCancel,
-                                    modifier = btnMod
-                                        .heightIn(min = 48.dp)
-                                        .testTag("reminderCancel:${reminder.id}")
-                                        .semantics { contentDescription = cancelDescription },
-                                    shape = VehicleLogShapes.medium,
-                                    enabled = !state.writing,
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.reminder_cancel_action),
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = semanticColors.onDanger,
-                                        ),
-                                    )
-                                }
-                            }
-                            if (stackSecondary) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    editBtn(Modifier.fillMaxWidth())
-                                    cancelBtn(Modifier.fillMaxWidth())
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    editBtn(Modifier.weight(1f))
-                                    cancelBtn(Modifier.weight(1f))
-                                }
-                            }
                         }
                     }
                 }
