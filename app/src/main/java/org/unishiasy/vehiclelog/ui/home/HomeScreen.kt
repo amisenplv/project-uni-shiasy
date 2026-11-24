@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -321,10 +322,12 @@ internal fun HomeScreen(
 
                 // Fuel & Cost Metric Cards
                 val historyEntries = state.allHistory ?: state.recentHistory.orEmpty()
-                val avgConsumption = FuelConsumptionCalculator.calculateAverageL100Km(
-                    entries = historyEntries,
-                    targetVehicleId = selectedVehicle.id,
-                )
+                val avgConsumption = remember(historyEntries, selectedVehicle.id) {
+                    FuelConsumptionCalculator.calculateAverageL100Km(
+                        entries = historyEntries,
+                        targetVehicleId = selectedVehicle.id,
+                    )
+                }
                 val displayedMonth = month
                 val report = monthlyReport?.takeIf { it.first == selectedVehicle.id }?.second
                 val currentMonthTotal = displayedMonth?.let { m ->

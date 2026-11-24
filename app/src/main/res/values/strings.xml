@@ -301,6 +301,4 @@
     <string name="home_quick_overview">آمار کلی</string>
     <string name="home_quick_monthly">گزارش ماهانه</string>
     <string name="home_monthly_expense">هزینه این ماه</string>
-    <string name="home_latest_fuel_price">آخرین نرخ سوخت</string>
-    <string name="home_active_reminders">یادآورهای فعال</string>
 </resources>
