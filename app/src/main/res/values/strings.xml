@@ -302,6 +302,12 @@
     <string name="trip_unit_toman">تومان</string>
     <string name="trip_unit_km">کیلومتر</string>
     <string name="trip_reset">پاک کردن مقادیر</string>
+    <string name="trip_cost_prompt">اطلاعات سفر را وارد کنید</string>
+    <string name="trip_fuel_prompt">نیازمند مسافت و مصرف</string>
+    <string name="trip_cost_rate_required">نرخ سوخت را وارد کنید</string>
+    <string name="trip_rate_invalid">نرخ سوخت نامعتبر است</string>
+    <string name="trip_distance_invalid">مسافت نامعتبر است</string>
+    <string name="trip_consumption_invalid">مصرف سوخت نامعتبر است</string>
 
     <!-- Home Screen Redesign -->
     <string name="home_average_consumption">میانگین مصرف</string>

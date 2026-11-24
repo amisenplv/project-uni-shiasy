@@ -58,6 +58,10 @@ class TripCalculatorScreenTest {
         compose.onNodeWithTag("tripConsumptionInput").assertIsDisplayed()
         compose.onNodeWithTag("tripTotalFuel").assertIsDisplayed()
         compose.onNodeWithTag("tripTotalCost").assertIsDisplayed()
+
+        // Missing inputs display prompts instead of numeric zeros
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("نیازمند مسافت و مصرف", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("اطلاعات سفر را وارد کنید", substring = true)
     }
 
     @Test
@@ -91,8 +95,8 @@ class TripCalculatorScreenTest {
 
         compose.waitForIdle()
 
-        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۰", substring = true)
-        compose.onNodeWithTag("tripTotalCost").assertTextContains("۰", substring = true)
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("مسافت نامعتبر است", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("اطلاعات سفر را وارد کنید", substring = true)
     }
 
     @Test
@@ -109,7 +113,54 @@ class TripCalculatorScreenTest {
         compose.waitForIdle()
 
         compose.onNodeWithTag("tripTotalFuel").assertTextContains("۴۰", substring = true)
-        compose.onNodeWithTag("tripTotalCost").assertTextContains("۰", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("نرخ سوخت نامعتبر است", substring = true)
+    }
+
+    @Test
+    fun distinguishIncompleteEstimateFromCalculatedCostAcrossAllStates() {
+        setTestContent {
+            TripCalculatorScreen()
+        }
+
+        // 1. Empty on open: asserts prompts
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("نیازمند مسافت و مصرف", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("اطلاعات سفر را وارد کنید", substring = true)
+
+        // 2. Enter distance 100 and consumption 8: asserts 8 liters fuel result and prompt for missing rate
+        compose.onNodeWithTag("tripDistanceInput").performTextReplacement("۱۰۰")
+        compose.onNodeWithTag("tripConsumptionInput").performTextReplacement("۸")
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۸", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("نرخ سوخت را وارد کنید", substring = true)
+
+        // 3. Enter rate 3,000: asserts 8 liters and 24,000 Toman
+        compose.onNodeWithTag("tripRateInput").performTextReplacement("۳۰۰۰")
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۸", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("۲۴٬۰۰۰", substring = true)
+
+        // 4. Clear rate: asserts 8 liters remains, cost displays prompt for rate
+        compose.onNodeWithTag("tripRateInput").performTextReplacement("")
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۸", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("نرخ سوخت را وارد کنید", substring = true)
+
+        // 5. Invalid rate (e.g. "abc"): asserts 8 liters remains, cost displays invalid rate prompt
+        compose.onNodeWithTag("tripRateInput").performTextReplacement("abc")
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۸", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("نرخ سوخت نامعتبر است", substring = true)
+
+        // 6. Reset: asserts inputs cleared and summary cards return to prompt state
+        compose.onNodeWithTag("tripResetButton").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("نیازمند مسافت و مصرف", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("اطلاعات سفر را وارد کنید", substring = true)
     }
 
     @Test

@@ -67,15 +67,26 @@ data class TripCalculatorState(
 ) {
     /**
      * Computed total fuel required in Liters based on distance and consumption.
+     * Null if distance or consumption is missing, non-positive, or unparseable.
      */
-    val totalFuelLiters: Double
+    val totalFuelLiters: Double?
         get() = calculateFuel(distanceKm, consumptionL100Km)
 
     /**
      * Computed total estimated fuel cost in Toman.
+     * Null if fuel is null or rate is missing, non-positive, or unparseable.
      */
-    val totalCostToman: Long
+    val totalCostToman: Long?
         get() = calculateCost(totalFuelLiters, ratePerLiterToman)
+
+    val isDistanceInvalid: Boolean
+        get() = distanceKm.isNotBlank() && (parseInput(distanceKm).let { it == null || it <= 0.0 })
+
+    val isConsumptionInvalid: Boolean
+        get() = consumptionL100Km.isNotBlank() && (parseInput(consumptionL100Km).let { it == null || it <= 0.0 })
+
+    val isRateInvalid: Boolean
+        get() = ratePerLiterToman.isNotBlank() && (parseInput(ratePerLiterToman).let { it == null || it <= 0.0 })
 
     /**
      * Secondary constructor for backward compatibility with 5-parameter callers.
@@ -84,27 +95,28 @@ data class TripCalculatorState(
         distanceKm: String,
         ratePerLiterToman: String,
         consumptionL100Km: String,
-        @Suppress("UNUSED_PARAMETER") totalFuelLiters: Double,
-        @Suppress("UNUSED_PARAMETER") totalCostToman: Long,
+        @Suppress("UNUSED_PARAMETER") totalFuelLiters: Double? = null,
+        @Suppress("UNUSED_PARAMETER") totalCostToman: Long? = null,
     ) : this(distanceKm, ratePerLiterToman, consumptionL100Km)
 
     companion object {
-        fun calculateFuel(distanceKm: String, consumptionL100Km: String): Double {
+        fun calculateFuel(distanceKm: String, consumptionL100Km: String): Double? {
             val dist = parseInput(distanceKm)
             val cons = parseInput(consumptionL100Km)
             return if (dist != null && cons != null && dist > 0.0 && cons > 0.0) {
                 (dist * cons) / 100.0
             } else {
-                0.0
+                null
             }
         }
 
-        fun calculateCost(totalFuelLiters: Double, ratePerLiterToman: String): Long {
+        fun calculateCost(totalFuelLiters: Double?, ratePerLiterToman: String): Long? {
+            if (totalFuelLiters == null || totalFuelLiters <= 0.0) return null
             val rate = parseInput(ratePerLiterToman)
-            return if (totalFuelLiters > 0.0 && rate != null && rate > 0.0) {
+            return if (rate != null && rate > 0.0) {
                 kotlin.math.round(totalFuelLiters * rate).toLong()
             } else {
-                0L
+                null
             }
         }
 
@@ -228,8 +240,7 @@ fun TripCalculatorScreen(
 
             // Results Summary Card
             TripResultCard(
-                totalFuelLiters = state.totalFuelLiters,
-                totalCostToman = state.totalCostToman,
+                state = state,
             )
 
             // Input Fields Card
@@ -262,6 +273,10 @@ fun TripCalculatorScreen(
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         },
+                        isError = state.isDistanceInvalid,
+                        supportingText = if (state.isDistanceInvalid) {
+                            { Text(stringResource(R.string.trip_distance_invalid)) }
+                        } else null,
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = outlinedFieldColors(),
@@ -285,6 +300,10 @@ fun TripCalculatorScreen(
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         },
+                        isError = state.isConsumptionInvalid,
+                        supportingText = if (state.isConsumptionInvalid) {
+                            { Text(stringResource(R.string.trip_consumption_invalid)) }
+                        } else null,
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = outlinedFieldColors(),
@@ -308,6 +327,10 @@ fun TripCalculatorScreen(
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         },
+                        isError = state.isRateInvalid,
+                        supportingText = if (state.isRateInvalid) {
+                            { Text(stringResource(R.string.trip_rate_invalid)) }
+                        } else null,
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         colors = outlinedFieldColors(),
@@ -390,11 +413,12 @@ fun TripCalculatorScreen(
 
 @Composable
 private fun TripResultCard(
-    totalFuelLiters: Double,
-    totalCostToman: Long,
+    state: TripCalculatorState,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
+    val totalFuelLiters = state.totalFuelLiters
+    val totalCostToman = state.totalCostToman
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -421,12 +445,34 @@ private fun TripResultCard(
                         color = colors.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(4.dp))
+
+                    val (costText, costColor, costStyle) = when {
+                        totalCostToman != null -> Triple(
+                            "${totalCostToman.toPersianGroupedDigits()} ${stringResource(R.string.trip_unit_toman)}",
+                            colors.primary,
+                            MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        )
+                        state.isRateInvalid -> Triple(
+                            stringResource(R.string.trip_rate_invalid),
+                            colors.error,
+                            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        )
+                        totalFuelLiters != null && state.ratePerLiterToman.isBlank() -> Triple(
+                            stringResource(R.string.trip_cost_rate_required),
+                            colors.onSurfaceVariant,
+                            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                        )
+                        else -> Triple(
+                            stringResource(R.string.trip_cost_prompt),
+                            colors.onSurfaceVariant,
+                            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                        )
+                    }
+
                     Text(
-                        text = "${totalCostToman.toPersianGroupedDigits()} ${stringResource(R.string.trip_unit_toman)}",
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = colors.primary,
-                        ),
+                        text = costText,
+                        style = costStyle,
+                        color = costColor,
                         modifier = Modifier.testTag("tripTotalCost"),
                     )
                 }
@@ -449,22 +495,42 @@ private fun TripResultCard(
                     color = colors.onSurfaceVariant,
                 )
 
-                val fuelFormatted = if (totalFuelLiters == 0.0) {
-                    "۰"
-                } else if (totalFuelLiters % 1.0 == 0.0) {
-                    totalFuelLiters.toLong().toString().withPersianDigits()
-                } else {
-                    String.format(Locale.ROOT, "%.1f", totalFuelLiters)
-                        .replace('.', '٫')
-                        .withPersianDigits()
+                val (fuelText, fuelColor, fuelStyle) = when {
+                    totalFuelLiters != null -> {
+                        val fuelFormatted = if (totalFuelLiters % 1.0 == 0.0) {
+                            totalFuelLiters.toLong().toString().withPersianDigits()
+                        } else {
+                            String.format(Locale.ROOT, "%.1f", totalFuelLiters)
+                                .replace('.', '٫')
+                                .withPersianDigits()
+                        }
+                        Triple(
+                            "$fuelFormatted ${stringResource(R.string.trip_unit_liter)}",
+                            colors.onSurface,
+                            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        )
+                    }
+                    state.isDistanceInvalid -> Triple(
+                        stringResource(R.string.trip_distance_invalid),
+                        colors.error,
+                        MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    )
+                    state.isConsumptionInvalid -> Triple(
+                        stringResource(R.string.trip_consumption_invalid),
+                        colors.error,
+                        MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    )
+                    else -> Triple(
+                        stringResource(R.string.trip_fuel_prompt),
+                        colors.onSurfaceVariant,
+                        MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    )
                 }
 
                 Text(
-                    text = "$fuelFormatted ${stringResource(R.string.trip_unit_liter)}",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface,
-                    ),
+                    text = fuelText,
+                    style = fuelStyle,
+                    color = fuelColor,
                     modifier = Modifier.testTag("tripTotalFuel"),
                 )
             }
