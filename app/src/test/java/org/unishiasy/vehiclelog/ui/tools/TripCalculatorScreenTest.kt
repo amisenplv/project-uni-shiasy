@@ -217,4 +217,42 @@ class TripCalculatorScreenTest {
         compose.onNodeWithTag("ratePreset:3000").assertHeightIsAtLeast(48.dp)
         compose.onNodeWithTag("tripResetButton").assertHeightIsAtLeast(48.dp)
     }
+
+    @Test
+    fun displaysConsistentPersianNumeralsDuringTripEntry() {
+        setTestContent {
+            TripCalculatorScreen(initialConsumption = 7.5)
+        }
+
+        // Pass initialConsumption = 7.5, verify tripConsumptionInput displays ۷٫۵
+        compose.onNodeWithTag("tripConsumptionInput").assertTextContains("۷٫۵")
+
+        // Type Latin digits 100 in distance, verify tripDistanceInput displays ۱۰۰
+        compose.onNodeWithTag("tripDistanceInput").performTextInput("100")
+        compose.waitForIdle()
+        compose.onNodeWithTag("tripDistanceInput").assertTextContains("۱۰۰")
+
+        // Apply preset 1500, verify tripRateInput displays ۱۵۰۰
+        compose.onNodeWithTag("ratePreset:1500").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("tripRateInput").assertTextContains("۱۵۰۰")
+
+        // Apply preset 3000, verify tripRateInput displays ۳۰۰۰
+        compose.onNodeWithTag("ratePreset:3000").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("tripRateInput").assertTextContains("۳۰۰۰")
+
+        // Verify estimated cost displays ۲۲٬۵۰۰ تومان and fuel displays ۷٫۵ لیتر
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("۲۲٬۵۰۰", substring = true)
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۷٫۵", substring = true)
+
+        // Test deletion/replacement in consumption (replace with 8.0),
+        // verify calculation updates cleanly to ۸ لیتر and ۲۴٬۰۰۰ تومان
+        compose.onNodeWithTag("tripConsumptionInput").performTextReplacement("8.0")
+        compose.waitForIdle()
+        compose.onNodeWithTag("tripConsumptionInput").assertTextContains("۸٫۰")
+        compose.onNodeWithTag("tripTotalFuel").assertTextContains("۸", substring = true)
+        compose.onNodeWithTag("tripTotalCost").assertTextContains("۲۴٬۰۰۰", substring = true)
+    }
 }
+

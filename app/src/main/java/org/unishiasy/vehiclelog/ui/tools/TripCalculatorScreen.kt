@@ -53,6 +53,7 @@ import org.unishiasy.vehiclelog.R
 import org.unishiasy.vehiclelog.domain.PersianDigits
 import org.unishiasy.vehiclelog.domain.toPersianGroupedDigits
 import org.unishiasy.vehiclelog.domain.withPersianDigits
+import org.unishiasy.vehiclelog.ui.components.PersianNumericTransformation
 
 /**
  * State holding inputs and computed results for the trip cost calculator.
@@ -278,6 +279,7 @@ fun TripCalculatorScreen(
                             { Text(stringResource(R.string.trip_distance_invalid)) }
                         } else null,
                         singleLine = true,
+                        visualTransformation = PersianNumericTransformation,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = outlinedFieldColors(),
                         shape = RoundedCornerShape(12.dp),
@@ -305,6 +307,7 @@ fun TripCalculatorScreen(
                             { Text(stringResource(R.string.trip_consumption_invalid)) }
                         } else null,
                         singleLine = true,
+                        visualTransformation = PersianNumericTransformation,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = outlinedFieldColors(),
                         shape = RoundedCornerShape(12.dp),
@@ -332,6 +335,7 @@ fun TripCalculatorScreen(
                             { Text(stringResource(R.string.trip_rate_invalid)) }
                         } else null,
                         singleLine = true,
+                        visualTransformation = PersianNumericTransformation,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         colors = outlinedFieldColors(),
                         shape = RoundedCornerShape(12.dp),
