@@ -114,7 +114,7 @@ class LedgerEntryUiTest {
         assertDashboardTotal("۰ تومان")
         compose.onNodeWithTag("monthlyDashboard").performScrollToIndex(0)
         compose.onNodeWithContentDescription(context.getString(R.string.dashboard_back)).performClick()
-        compose.onNodeWithText(context.getString(R.string.ledger_add)).assertIsDisplayed()
+        compose.onNodeWithTag("entryFab").assertIsDisplayed()
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
     }
 
@@ -252,7 +252,8 @@ class LedgerEntryUiTest {
         prepare(fontScale = 1.5f)
         openNew()
         replace("Amount", "۱۲٫۰۰")
-        replace("Date", "۱۴۰۴/۱۲/۳۰")
+        // An invalid draft can have been created before the wheel picker became the entry control.
+        instrumentation.runOnMainSync { ledger.changeField(EntryField.Date, "۱۴۰۴/۱۲/۳۰") }
         compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
         replace("Notes", "پیش‌نویس LX")
         field("Notes").performScrollTo().performTouchInput { click() }
@@ -273,7 +274,7 @@ class LedgerEntryUiTest {
         assertEquals(before.fieldErrors, ledger.state.value.fieldErrors)
         field("Amount").performScrollTo().assertTextContains("۱۲٫۰۰")
         await(R.string.ledger_amount_invalid)
-        field("Date").performScrollTo().assertTextContains("۱۴۰۴/۱۲/۳۰")
+        compose.onNodeWithTag("ledgerDatePickerOpen").performScrollTo().assertTextContains("۱۴۰۴/۱۲/۳۰", substring = true)
         await(R.string.ledger_date_invalid)
         field("Notes").performScrollTo().assertTextContains("پیش‌نویس LX")
         compose.onNodeWithTag("ledgerSave").assertIsDisplayed()
@@ -309,7 +310,9 @@ class LedgerEntryUiTest {
         assertNull(savedEntry().entry.amountRials)
 
         openRecent(id)
-        replace("Date", "۱۴۰۵/۰۱/۰۱")
+        compose.onNodeWithTag("ledgerDatePickerOpen").performScrollTo().performClick()
+        compose.onNodeWithTag("jalaliPickerToday").performClick()
+        compose.onNodeWithTag("jalaliPickerConfirm").performClick()
         replace("Mileage", "۱۲۳۰")
         save()
         val edited = savedEntry()
@@ -390,7 +393,7 @@ class LedgerEntryUiTest {
         }
         openVehicle()
         compose.waitUntil(5_000) { ledger.state.value.entries?.size == 7 }
-        compose.onNodeWithText(context.getString(R.string.ledger_history_title)).assertIsDisplayed()
+        compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
         entryIds.forEachIndexed { index, id ->
             compose.onNodeWithTag("ledgerHistoryList").performScrollToIndex(index + 1)
             compose.onNodeWithTag("ledgerRecent:$id").assertIsDisplayed()
@@ -398,7 +401,7 @@ class LedgerEntryUiTest {
         compose.onNodeWithTag("ledgerHistoryList").performScrollToIndex(1)
         compose.onNodeWithText("۳۰", substring = true).assertIsDisplayed()
         compose.onNodeWithText("لیتر", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("۱۲۰۰", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("۱٬۲۰۰", substring = true).assertIsDisplayed()
         compose.onNodeWithText("کیلومتر", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("ledgerHistoryList").performScrollToIndex(3)
         compose.onNodeWithText("مبلغ ثبت نشده").assertIsDisplayed()
@@ -424,21 +427,21 @@ class LedgerEntryUiTest {
         openVehicle()
         compose.waitUntil(5_000) { ledger.state.value.entries?.any { it.id == entryId.toString() } == true }
         compose.onNodeWithTag("ledgerHistoryList").performScrollToIndex(1)
-        compose.onNodeWithTag("ledgerDelete:$entryId").performClick()
+        requestDelete(entryId)
 
         compose.onNodeWithText(context.getString(R.string.ledger_delete_title)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.ledger_delete_confirm)).assertIsDisplayed()
 
         compose.onNodeWithTag("ledgerCancelDelete").performClick()
-        compose.onNodeWithTag("ledgerDelete:$entryId").assertIsDisplayed()
+        compose.onNodeWithTag("ledgerRecent:$entryId").assertIsDisplayed()
         assertTrue(runBlocking { repository.findById(entryId) != null })
 
-        compose.onNodeWithTag("ledgerDelete:$entryId").performClick()
+        requestDelete(entryId)
         compose.onNodeWithTag("ledgerConfirmDelete").performClick()
 
         await(R.string.ledger_deleted)
         compose.waitUntil(5_000) { ledger.state.value.entries?.any { it.id == entryId.toString() } == false }
-        compose.onNodeWithTag("ledgerDelete:$entryId").assertDoesNotExist()
+        compose.onNodeWithTag("ledgerRecent:$entryId").assertDoesNotExist()
 
         runBlocking {
             assertNull(repository.findById(entryId))
@@ -469,7 +472,7 @@ class LedgerEntryUiTest {
 
         await(R.string.ledger_deleted)
         compose.waitUntil(5_000) { ledger.state.value.entries?.any { it.id == entryId.toString() } == false }
-        compose.onNodeWithTag("ledgerDelete:$entryId").assertDoesNotExist()
+        compose.onNodeWithTag("ledgerRecent:$entryId").assertDoesNotExist()
         assertTrue(runBlocking { repository.findById(entryId) == null })
     }
 
@@ -499,7 +502,8 @@ class LedgerEntryUiTest {
         compose.onNodeWithText(openLabel).performScrollTo().performClick()
         compose.onNodeWithTag("ledgerHistoryList").assertIsDisplayed()
 
-        compose.onNodeWithText(context.getString(R.string.ledger_add)).performClick()
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
         replace("Amount", "١٢٬۰۰۰٫۱")
         replace("Volume", "۳٢٫۴۵۰")
         compose.onNodeWithTag("ledgerDetailsToggle").performScrollTo().performClick()
@@ -557,7 +561,7 @@ class LedgerEntryUiTest {
 
         compose.waitUntil(5_000) { ledger.state.value.entries?.any { it.id == fuelId.toString() } == true }
         compose.onNodeWithTag("ledgerHistoryList").performScrollToIndex(1)
-        compose.onNodeWithTag("ledgerDelete:$fuelId").performClick()
+        requestDelete(fuelId)
 
         compose.onNodeWithText(context.getString(R.string.ledger_delete_title)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.ledger_delete_confirm)).assertIsDisplayed()
@@ -690,7 +694,14 @@ class LedgerEntryUiTest {
 
     private fun openNew() {
         openVehicle()
-        click(R.string.ledger_add)
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
+    }
+
+    private fun requestDelete(id: UUID) {
+        compose.onNodeWithTag("ledgerRecent:$id").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entryDetailDelete").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entryDetailDelete").performScrollTo().performClick()
     }
 
     private fun openRecent(id: UUID) {

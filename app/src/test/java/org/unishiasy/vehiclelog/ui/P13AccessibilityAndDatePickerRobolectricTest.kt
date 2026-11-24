@@ -6,13 +6,18 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
@@ -104,17 +109,18 @@ class P13AccessibilityAndDatePickerRobolectricTest {
     }
 
     @Test
-    fun highFontScaleStacksHomeAndFuelFieldsAndEntryPickerSelectsLeapEsfand30() {
+    fun highFontScaleStacksSelectorAndFuelFieldsAndEntryPickerSelectsLeapEsfand30() {
         mountHost(fontScale = 1.5f)
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeQuickAdd").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entryFab").fetchSemanticsNodes().isNotEmpty() }
 
-        compose.onNodeWithTag("homeAddExpense").performScrollTo()
-        compose.waitForIdle()
-        val fuelBounds = compose.onNodeWithTag("homeQuickAdd").getUnclippedBoundsInRoot()
-        val expenseBounds = compose.onNodeWithTag("homeAddExpense").getUnclippedBoundsInRoot()
-        assertTrue("Expected stacked action buttons at 1.5x fontScale", expenseBounds.top >= fuelBounds.bottom)
-
-        compose.onNodeWithTag("homeQuickAdd").performScrollTo().performClick()
+        val fabBounds = compose.onNodeWithTag("entryFab").getUnclippedBoundsInRoot()
+        assertTrue(fabBounds.bottom - fabBounds.top >= 48.dp)
+        compose.onNodeWithTag("entryFab").performClick()
+        val fuelBounds = compose.onNodeWithTag("selectorOption:fuel").getUnclippedBoundsInRoot()
+        val expenseBounds = compose.onNodeWithTag("selectorOption:expense").getUnclippedBoundsInRoot()
+        assertTrue("Expected stacked actions at 1.5x fontScale", expenseBounds.top >= fuelBounds.bottom)
+        assertTrue(fuelBounds.bottom - fuelBounds.top >= 48.dp && expenseBounds.bottom - expenseBounds.top >= 48.dp)
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
         compose.waitForIdle()
 
         compose.onNodeWithTag("ledgerVolume").performScrollTo()
@@ -131,31 +137,48 @@ class P13AccessibilityAndDatePickerRobolectricTest {
         // Open Jalali calendar picker, step back 1 year from 1404/12 -> 1403/12 (leap year), select day 30
         compose.onNodeWithTag("ledgerDatePickerOpen").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("jalaliDatePickerDialog").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("jalaliPickerPrevYear").performClick()
-        compose.waitForIdle()
-        compose.onNodeWithTag("jalaliPickerDay:30").assertIsDisplayed().performClick()
-        compose.waitForIdle()
-
+        compose.onNodeWithTag("jalaliPickerYearWheel").performScrollToIndex(1403 - 1300)
+        compose.onNodeWithTag("jalaliPickerDayWheel").performTouchInput { swipeUp() }
+        compose.onNodeWithTag("jalaliPickerDay:30").assertIsDisplayed().assertIsSelected()
+        assertEquals("۱۴۰۴/۱۲/۲۹", ledgerVm.state.value.draft?.date)
+        compose.onNodeWithTag("jalaliPickerConfirm").performClick()
         assertEquals("۱۴۰۳/۱۲/۳۰", ledgerVm.state.value.draft?.date)
+
+        compose.onNodeWithTag("ledgerDatePickerOpen").performScrollTo().performClick()
+        compose.onNodeWithTag("jalaliPickerYearWheel").performScrollToIndex(1404 - 1300)
+        compose.onNodeWithTag("jalaliPickerDismiss").performClick()
+        assertEquals("۱۴۰۳/۱۲/۳۰", ledgerVm.state.value.draft?.date)
+
+        compose.onNodeWithTag("ledgerDatePickerOpen").performScrollTo().performClick()
+        compose.onNodeWithTag("jalaliPickerYearWheel").performScrollToIndex(1404 - 1300)
+        compose.onNodeWithTag("jalaliPickerConfirm").performClick()
+        assertEquals("۱۴۰۴/۱۲/۲۹", ledgerVm.state.value.draft?.date)
     }
 
     @Test
     fun reminderQuickPresetAndDatePickerUpdateDraft() {
         mountHost(fontScale = 1f)
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("homeOpenReminders").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("dockTab:reminders").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("dockTab:reminders").performClick()
         compose.waitForIdle()
+
+        val fab = compose.onNodeWithTag("reminderFab").getUnclippedBoundsInRoot()
+        val navigation = compose.onNodeWithTag("appBottomDock").getUnclippedBoundsInRoot()
+        assertTrue(fab.bottom <= navigation.top && fab.left < navigation.left + (navigation.right - navigation.left) / 2)
+        assertTrue(fab.bottom - fab.top >= 48.dp)
+        assertTrue(compose.onNodeWithTag("remindersScreen").getUnclippedBoundsInRoot().bottom <= fab.top)
 
         // +3 months from 1405/01/01 -> 1405/04/01
         compose.onNodeWithTag("reminderQuick3m").performScrollTo().performClick()
         compose.waitForIdle()
         assertEquals("۱۴۰۵/۰۴/۰۱", reminderVm.state.value.draft.date)
 
-        // Open picker and tap Today -> 1405/01/01
+        // Today centers the wheels without changing the draft until confirmation.
         compose.onNodeWithTag("reminderDatePickerOpen").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("jalaliDatePickerDialog").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("jalaliPickerToday").performClick()
-        compose.waitForIdle()
+        assertEquals("۱۴۰۵/۰۴/۰۱", reminderVm.state.value.draft.date)
+        compose.onNodeWithTag("jalaliPickerConfirm").performClick()
         assertEquals("۱۴۰۵/۰۱/۰۱", reminderVm.state.value.draft.date)
     }
 }

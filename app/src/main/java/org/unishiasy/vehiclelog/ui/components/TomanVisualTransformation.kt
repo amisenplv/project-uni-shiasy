@@ -5,6 +5,14 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import org.unishiasy.vehiclelog.domain.normalizeInputDigits
+import org.unishiasy.vehiclelog.domain.withPersianDigits
+
+internal val PersianNumericTransformation = VisualTransformation { text ->
+    TransformedText(
+        AnnotatedString(text.text.normalizeInputDigits().withPersianDigits().replace('.', '٫')),
+        OffsetMapping.Identity,
+    )
+}
 
 internal class TomanVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {

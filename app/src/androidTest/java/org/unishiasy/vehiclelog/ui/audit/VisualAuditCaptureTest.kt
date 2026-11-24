@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -264,8 +265,9 @@ class VisualAuditCaptureTest {
         capture("03_home_single_vehicle")
 
         // 2. Open Quick Add
-        compose.onNodeWithTag("homeQuickAdd").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.ledger_add)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.home_log_fuel)).fetchSemanticsNodes().isNotEmpty() }
         capture("05_quick_add_form")
 
         // 3. Quick Add with validation errors
@@ -277,7 +279,7 @@ class VisualAuditCaptureTest {
         instrumentation.runOnMainSync { ledgerVm.back() }
 
         // 4. Capture History
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.ledger_history_title)).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("ledgerHistoryList").fetchSemanticsNodes().isNotEmpty() }
         capture("07_history_screen")
 
         // 5. Open Delete Dialog in History
@@ -299,7 +301,7 @@ class VisualAuditCaptureTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("سمند LX").fetchSemanticsNodes().isNotEmpty() }
 
         // 7. Open Reminders
-        compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+        compose.onNodeWithTag("dockTab:reminders").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.reminders_title)).fetchSemanticsNodes().isNotEmpty() }
         capture("10_reminders_screen")
         compose.onNodeWithTag("remindersBack").performClick()
@@ -320,7 +322,9 @@ class VisualAuditCaptureTest {
         capture("04_home_multi_vehicle")
 
         // Vehicle Setup Form
-        compose.onNodeWithTag("homeAddVehicle").performScrollTo().performClick()
+        compose.onNodeWithTag("homeOpenVehicleSwitcher").performClick()
+        compose.onNodeWithTag("manageVehiclesButton").performClick()
+        compose.onNodeWithText(context.getString(R.string.vehicle_add)).performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.vehicle_add)).fetchSemanticsNodes().isNotEmpty() }
         capture("02_vehicle_setup_form")
     }
@@ -338,8 +342,9 @@ class VisualAuditCaptureTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("سمند LX").fetchSemanticsNodes().isNotEmpty() }
         capture("13_font150_home")
 
-        compose.onNodeWithTag("homeQuickAdd").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.ledger_add)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.home_log_fuel)).fetchSemanticsNodes().isNotEmpty() }
         capture("12_font150_quick_add")
     }
 
@@ -350,13 +355,14 @@ class VisualAuditCaptureTest {
         capture("dark_03_home_single_vehicle")
 
         // Quick Add Dark
-        compose.onNodeWithTag("homeQuickAdd").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.ledger_add)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entryFab").performClick()
+        compose.onNodeWithTag("selectorOption:fuel").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.home_log_fuel)).fetchSemanticsNodes().isNotEmpty() }
         capture("dark_05_quick_add_form")
 
         // Back from form to History
         instrumentation.runOnMainSync { ledgerVm.back() }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.ledger_history_title)).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("ledgerHistoryList").fetchSemanticsNodes().isNotEmpty() }
         capture("dark_07_history_screen")
 
         // Back from History to Home
@@ -372,7 +378,7 @@ class VisualAuditCaptureTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("سمند LX").fetchSemanticsNodes().isNotEmpty() }
 
         // Reminders Dark
-        compose.onNodeWithTag("homeOpenReminders").performScrollTo().performClick()
+        compose.onNodeWithTag("dockTab:reminders").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.reminders_title)).fetchSemanticsNodes().isNotEmpty() }
         capture("dark_10_reminders_screen")
         compose.onNodeWithTag("remindersBack").performClick()
